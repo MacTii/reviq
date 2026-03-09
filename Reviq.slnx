@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Reviq.API/Reviq.API.csproj" />
+  <Project Path="Reviq.Domain/Reviq.Domain.csproj" Id="021699bb-0e17-451e-8db4-834ac01529c0" />
+  <Project Path="Reviq.Infrastructure/Reviq.Infrastructure.csproj" Id="4c2cb801-b3e3-49d9-b445-761d58c067b1" />
+  <Project Path="Reviq.Application/Reviq.Application.csproj" Id="694f35b7-f0be-458d-a73b-c063cb44d8b3" />
+</Solution>

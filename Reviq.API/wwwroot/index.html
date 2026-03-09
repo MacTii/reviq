@@ -1,0 +1,1219 @@
+﻿<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reviq — AI Code Review</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0b0e;
+            --surface: #10121a;
+            --surface2: #161923;
+            --border: #1e2435;
+            --border2: #252d42;
+            --accent: #4f8ef7;
+            --accent2: #7c6af7;
+            --green: #34d399;
+            --yellow: #fbbf24;
+            --red: #f87171;
+            --red2: #ef4444;
+            --text: #e2e8f0;
+            --text2: #8892a4;
+            --text3: #4a5568;
+            --mono: 'JetBrains Mono', monospace;
+            --sans: 'Syne', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--mono);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+            /* Grid background */
+            body::before {
+                content: '';
+                position: fixed;
+                inset: 0;
+                background-image: linear-gradient(rgba(79, 142, 247, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(79, 142, 247, 0.03) 1px, transparent 1px);
+                background-size: 40px 40px;
+                pointer-events: none;
+                z-index: 0;
+            }
+
+        .app {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 32px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .logo h1 {
+            font-family: var(--sans);
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+
+        .logo span {
+            color: var(--accent);
+        }
+
+        .ollama-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text2);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--text3);
+            transition: background 0.3s;
+        }
+
+            .status-dot.online {
+                background: var(--green);
+                box-shadow: 0 0 6px var(--green);
+            }
+
+            .status-dot.offline {
+                background: var(--red);
+            }
+
+        /* Main layout */
+        .main {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+
+        /* Panel */
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text2);
+        }
+
+            .panel-header .dot {
+                width: 6px;
+                height: 6px;
+                background: var(--accent);
+                border-radius: 50%;
+            }
+
+        /* Form */
+        .form {
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        label {
+            display: block;
+            font-size: 11px;
+            color: var(--text2);
+            margin-bottom: 6px;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        input, select {
+            width: 100%;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-family: var(--mono);
+            font-size: 13px;
+            padding: 9px 12px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+            input:focus, select:focus {
+                border-color: var(--accent);
+            }
+
+            input::placeholder {
+                color: var(--text3);
+            }
+
+        .model-select-wrap {
+            position: relative;
+        }
+
+        .model-badge {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 10px;
+            color: var(--accent);
+            background: rgba(79,142,247,0.1);
+            border: 1px solid rgba(79,142,247,0.2);
+            padding: 2px 6px;
+            border-radius: 4px;
+            pointer-events: none;
+        }
+
+        .checkbox-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 10px;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            font-size: 12px;
+            color: var(--text2);
+            user-select: none;
+        }
+
+            .checkbox-item.active {
+                border-color: var(--accent);
+                background: rgba(79,142,247,0.06);
+                color: var(--text);
+            }
+
+            .checkbox-item input {
+                display: none;
+            }
+
+        .check-icon {
+            width: 14px;
+            height: 14px;
+            border: 1px solid var(--border2);
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            flex-shrink: 0;
+        }
+
+        .checkbox-item.active .check-icon {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .btn {
+            width: 100%;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-family: var(--sans);
+            font-size: 14px;
+            font-weight: 600;
+            padding: 11px;
+            cursor: pointer;
+            letter-spacing: 0.03em;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+            .btn:hover {
+                opacity: 0.9;
+            }
+
+            .btn:active {
+                transform: scale(0.99);
+            }
+
+            .btn:disabled {
+                opacity: 0.4;
+                cursor: not-allowed;
+            }
+
+        .btn-secondary {
+            background: var(--surface2);
+            border: 1px solid var(--border2);
+            color: var(--text2);
+            font-family: var(--mono);
+            font-size: 12px;
+            padding: 8px;
+            cursor: pointer;
+            border-radius: 6px;
+            width: 100%;
+            transition: border-color 0.2s, color 0.2s;
+        }
+
+            .btn-secondary:hover {
+                border-color: var(--accent);
+                color: var(--text);
+            }
+
+        /* Results */
+        .results-area {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* Empty state */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+            color: var(--text3);
+            text-align: center;
+            gap: 12px;
+        }
+
+        .empty-icon {
+            font-size: 40px;
+            opacity: 0.3;
+        }
+
+        .empty-state p {
+            font-size: 13px;
+            line-height: 1.6;
+            max-width: 280px;
+        }
+
+        /* Loader */
+        .loader {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 48px;
+            gap: 20px;
+        }
+
+            .loader.active {
+                display: flex;
+            }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .loader-text {
+            font-size: 13px;
+            color: var(--text2);
+        }
+
+        .loader-file {
+            font-size: 11px;
+            color: var(--text3);
+            font-family: var(--mono);
+        }
+
+        /* Summary bar */
+        .summary-bar {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr) auto;
+            gap: 16px;
+            align-items: center;
+            animation: fadeUp 0.4s ease;
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-family: var(--sans);
+            font-size: 26px;
+            font-weight: 800;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            color: var(--text3);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .score-ring {
+            width: 64px;
+            height: 64px;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+            .score-ring svg {
+                transform: rotate(-90deg);
+            }
+
+        .score-ring-text {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--sans);
+            font-size: 16px;
+            font-weight: 800;
+        }
+
+        /* File reviews */
+        .file-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            animation: fadeUp 0.4s ease;
+        }
+
+        .file-card-header {
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+            .file-card-header:hover {
+                background: var(--surface2);
+            }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .file-lang {
+            font-size: 10px;
+            padding: 2px 7px;
+            border-radius: 4px;
+            background: rgba(79,142,247,0.1);
+            border: 1px solid rgba(79,142,247,0.2);
+            color: var(--accent);
+            font-weight: 600;
+            letter-spacing: 0.05em;
+        }
+
+        .file-path {
+            font-size: 13px;
+            color: var(--text);
+        }
+
+        .file-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .issue-counts {
+            display: flex;
+            gap: 6px;
+        }
+
+        .badge {
+            font-size: 10px;
+            padding: 2px 7px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+            .badge.critical {
+                background: rgba(248,113,113,0.12);
+                color: var(--red);
+                border: 1px solid rgba(248,113,113,0.2);
+            }
+
+            .badge.warning {
+                background: rgba(251,191,36,0.12);
+                color: var(--yellow);
+                border: 1px solid rgba(251,191,36,0.2);
+            }
+
+            .badge.info {
+                background: rgba(79,142,247,0.12);
+                color: var(--accent);
+                border: 1px solid rgba(79,142,247,0.2);
+            }
+
+        .file-score {
+            font-family: var(--sans);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .chevron {
+            font-size: 12px;
+            color: var(--text3);
+            transition: transform 0.2s;
+        }
+
+        .file-card.open .chevron {
+            transform: rotate(180deg);
+        }
+
+        .file-issues {
+            display: none;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .file-card.open .file-issues {
+            display: flex;
+        }
+
+        .issue-item {
+            padding: 12px 16px;
+            border-top: 1px solid var(--border);
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 12px;
+            transition: background 0.15s;
+        }
+
+            .issue-item:hover {
+                background: rgba(255,255,255,0.02);
+            }
+
+        .issue-severity {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding-top: 2px;
+        }
+
+        .sev-bar {
+            width: 3px;
+            flex: 1;
+            border-radius: 2px;
+            min-height: 16px;
+        }
+
+            .sev-bar.Critical {
+                background: var(--red);
+            }
+
+            .sev-bar.Warning {
+                background: var(--yellow);
+            }
+
+            .sev-bar.Info {
+                background: var(--accent);
+            }
+
+        .issue-content {
+            min-width: 0;
+        }
+
+        .issue-title-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+            flex-wrap: wrap;
+        }
+
+        .issue-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .issue-cat {
+            font-size: 10px;
+            color: var(--text3);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .issue-line {
+            font-size: 10px;
+            color: var(--text3);
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            padding: 1px 6px;
+            border-radius: 3px;
+        }
+
+        .issue-desc {
+            font-size: 12px;
+            color: var(--text2);
+            line-height: 1.6;
+            margin-bottom: 6px;
+        }
+
+        .issue-suggestion {
+            font-size: 11px;
+            color: var(--green);
+            background: rgba(52,211,153,0.06);
+            border: 1px solid rgba(52,211,153,0.15);
+            border-left: 2px solid var(--green);
+            padding: 6px 10px;
+            border-radius: 0 4px 4px 0;
+            line-height: 1.5;
+        }
+
+            .issue-suggestion::before {
+                content: '→ ';
+                opacity: 0.7;
+            }
+
+        /* Feedback */
+        .general-feedback {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent2);
+            border-radius: 0 12px 12px 0;
+            padding: 14px 18px;
+            font-size: 13px;
+            color: var(--text2);
+            line-height: 1.7;
+            animation: fadeUp 0.4s ease;
+        }
+
+        /* Error */
+        .error-box {
+            background: rgba(239,68,68,0.05);
+            border: 1px solid rgba(239,68,68,0.2);
+            border-radius: 8px;
+            padding: 14px 16px;
+            font-size: 13px;
+            color: var(--red);
+            display: none;
+        }
+
+            .error-box.active {
+                display: block;
+            }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border2);
+            border-radius: 3px;
+        }
+
+        @media (max-width: 860px) {
+            .main {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 2px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 3px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 8px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text3);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+            letter-spacing: 0.04em;
+            user-select: none;
+        }
+
+            .tab.active {
+                background: var(--surface);
+                color: var(--text);
+                border: 1px solid var(--border);
+            }
+
+        .tab-content {
+            display: none;
+        }
+
+            .tab-content.active {
+                display: block;
+            }
+
+        /* Code editor */
+        .code-editor-wrap {
+            position: relative;
+        }
+
+        textarea.code-input {
+            width: 100%;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-family: var(--mono);
+            font-size: 12px;
+            padding: 10px 12px;
+            outline: none;
+            resize: vertical;
+            min-height: 220px;
+            line-height: 1.6;
+            transition: border-color 0.2s;
+            tab-size: 2;
+        }
+
+            textarea.code-input:focus {
+                border-color: var(--accent);
+            }
+
+        .line-count {
+            position: absolute;
+            bottom: 8px;
+            right: 10px;
+            font-size: 10px;
+            color: var(--text3);
+            pointer-events: none;
+        }
+
+        .lang-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">⚡</div>
+                <h1>Code<span>Review</span> AI</h1>
+            </div>
+            <div class="ollama-status">
+                <div class="status-dot" id="ollamaDot"></div>
+                <span id="ollamaStatusText">Sprawdzanie Ollama...</span>
+            </div>
+        </header>
+
+        <div class="main">
+            <!-- Left: Form -->
+            <div>
+
+                <!-- Tabs -->
+                <div class="tabs">
+                    <div class="tab active" id="tabSnippet" onclick="switchTab('snippet')">✏️ Snippet</div>
+                    <div class="tab" id="tabRepo" onclick="switchTab('repo')">📁 Repository</div>
+                </div>
+
+                <!-- SNIPPET TAB -->
+                <div class="tab-content active" id="contentSnippet">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <div class="dot"></div>
+                            Wklej kod do analizy
+                        </div>
+                        <div class="form">
+                            <div class="lang-row">
+                                <div>
+                                    <label>Język</label>
+                                    <select id="snippetLang">
+                                        <option value="C#">C#</option>
+                                        <option value="TypeScript">TypeScript</option>
+                                        <option value="JavaScript">JavaScript</option>
+                                        <option value="Python">Python</option>
+                                        <option value="Java">Java</option>
+                                        <option value="Go">Go</option>
+                                        <option value="Rust">Rust</option>
+                                        <option value="PHP">PHP</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Nazwa pliku</label>
+                                    <input type="text" id="snippetFileName" placeholder="MyService.cs" value="snippet.cs" />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label>Kod</label>
+                                <div class="code-editor-wrap">
+                                    <textarea class="code-input" id="snippetCode"
+                                              placeholder="Wklej tutaj kod do przeglądu..."
+                                              oninput="updateLineCount()"></textarea>
+                                    <span class="line-count" id="lineCount">0 linii</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label>Model Ollama</label>
+                                <div class="model-select-wrap">
+                                    <select id="snippetModel">
+                                        <option value="deepseek-coder-v2">deepseek-coder-v2 (zalecany)</option>
+                                    </select>
+                                    <span class="model-badge">LOCAL</span>
+                                </div>
+                            </div>
+
+                            <div id="snippetErrorBox" class="error-box"></div>
+
+                            <button class="btn" id="snippetBtn" onclick="startSnippetReview()">
+                                ⚡ Analizuj kod
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- REPO TAB -->
+                <div class="tab-content" id="contentRepo">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <div class="dot"></div>
+                            Konfiguracja Review
+                        </div>
+                        <div class="form">
+                            <div>
+                                <label>Ścieżka do repozytorium</label>
+                                <input type="text" id="repoPath" placeholder="C:\Projects\MyApp lub /home/user/myapp" />
+                            </div>
+
+                            <div>
+                                <label>Model Ollama</label>
+                                <div class="model-select-wrap">
+                                    <select id="modelSelect">
+                                        <option value="deepseek-coder-v2">deepseek-coder-v2 (zalecany)</option>
+                                    </select>
+                                    <span class="model-badge">LOCAL</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label>Zakres analizy</label>
+                                <div class="checkbox-group" id="scopeChecks">
+                                    <label class="checkbox-item active" data-scope="bugs">
+                                        <input type="checkbox" checked />
+                                        <div class="check-icon">✓</div>
+                                        🐛 Bugi
+                                    </label>
+                                    <label class="checkbox-item active" data-scope="security">
+                                        <input type="checkbox" checked />
+                                        <div class="check-icon">✓</div>
+                                        🔒 Security
+                                    </label>
+                                    <label class="checkbox-item active" data-scope="bestpractice">
+                                        <input type="checkbox" checked />
+                                        <div class="check-icon">✓</div>
+                                        ✨ Best Practices
+                                    </label>
+                                    <label class="checkbox-item active" data-scope="refactor">
+                                        <input type="checkbox" checked />
+                                        <div class="check-icon">✓</div>
+                                        🔧 Refactor
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div id="errorBox" class="error-box"></div>
+
+                            <button class="btn" id="reviewBtn" onclick="startReview()">
+                                ⚡ Uruchom Review
+                            </button>
+                            <button class="btn-secondary" onclick="checkRepo()">
+                                🔍 Podgląd plików do analizy
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="repoPreview" style="display:none; margin-top:16px;">
+                        <div class="panel">
+                            <div class="panel-header">
+                                <div class="dot"></div>
+                                Info o repozytorium
+                            </div>
+                            <div style="padding:14px 18px; font-size:12px; display:flex; flex-direction:column; gap:8px;" id="repoInfoContent"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right: Results -->
+            <div class="results-area" id="resultsArea">
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="dot"></div>
+                        Wyniki analizy
+                    </div>
+                    <div class="empty-state" id="emptyState">
+                        <div class="empty-icon">🔬</div>
+                        <p>Wprowadź ścieżkę do repozytorium i uruchom review, aby zobaczyć wyniki.</p>
+                    </div>
+                    <div class="loader" id="loader">
+                        <div class="spinner"></div>
+                        <div class="loader-text">Analizuję kod lokalnie (Ollama)...</div>
+                        <div class="loader-file" id="loaderFile">Uruchamianie modelu...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = 'http://localhost:5000/api';
+
+        // ── Tabs ──────────────────────────────────────────────
+        function switchTab(tab) {
+            document.getElementById('tabSnippet').classList.toggle('active', tab === 'snippet');
+            document.getElementById('tabRepo').classList.toggle('active', tab === 'repo');
+            document.getElementById('contentSnippet').classList.toggle('active', tab === 'snippet');
+            document.getElementById('contentRepo').classList.toggle('active', tab === 'repo');
+        }
+
+        // ── Ollama status ─────────────────────────────────────
+        async function checkOllama() {
+            try {
+                const r = await fetch(`${API}/ollama/status`);
+                const d = await r.json();
+                const dot = document.getElementById('ollamaDot');
+                const txt = document.getElementById('ollamaStatusText');
+                if (d.available) {
+                    dot.className = 'status-dot online';
+                    txt.textContent = `Ollama online · ${d.models.length} model${d.models.length !== 1 ? 'i' : ''}`;
+                    ['modelSelect', 'snippetModel'].forEach(id => {
+                        const sel = document.getElementById(id);
+                        if (!sel) return;
+                        sel.innerHTML = '';
+                        d.models.forEach(m => {
+                            const opt = document.createElement('option');
+                            opt.value = m;
+                            opt.textContent = m + (m.includes('deepseek-coder-v2') ? ' (zalecany)' : '');
+                            sel.appendChild(opt);
+                        });
+                    });
+                } else {
+                    dot.className = 'status-dot offline';
+                    txt.textContent = 'Ollama offline';
+                }
+            } catch {
+                document.getElementById('ollamaDot').className = 'status-dot offline';
+                document.getElementById('ollamaStatusText').textContent = 'API niedostępne';
+            }
+        }
+
+        // ── Checkbox toggle ───────────────────────────────────
+        document.querySelectorAll('.checkbox-item').forEach(item => {
+            item.addEventListener('click', () => {
+                item.classList.toggle('active');
+                item.querySelector('.check-icon').textContent = item.classList.contains('active') ? '✓' : '';
+            });
+        });
+
+        // ── Line counter ──────────────────────────────────────
+        function updateLineCount() {
+            const code = document.getElementById('snippetCode').value;
+            const lines = code ? code.split('\n').length : 0;
+            document.getElementById('lineCount').textContent = `${lines} linii`;
+
+            const ext = { 'C#': '.cs', 'TypeScript': '.ts', 'JavaScript': '.js', 'Python': '.py', 'Java': '.java', 'Go': '.go', 'Rust': '.rs', 'PHP': '.php' };
+            const lang = document.getElementById('snippetLang').value;
+            const fn = document.getElementById('snippetFileName');
+            if (fn.value === 'snippet.cs' || fn.value.startsWith('snippet.')) {
+                fn.value = 'snippet' + (ext[lang] || '.txt');
+            }
+        }
+
+        document.getElementById('snippetLang').addEventListener('change', updateLineCount);
+
+        // ── Snippet review ────────────────────────────────────
+        async function startSnippetReview() {
+            const code = document.getElementById('snippetCode').value.trim();
+            const language = document.getElementById('snippetLang').value;
+            const fileName = document.getElementById('snippetFileName').value.trim() || 'snippet.cs';
+            const model = document.getElementById('snippetModel').value;
+
+            if (!code) return showSnippetError('Wklej kod do analizy.');
+            clearSnippetError();
+
+            const btn = document.getElementById('snippetBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Analizuję...';
+            showLoader();
+
+            try {
+                const r = await fetch(`${API}/code/review?model=${encodeURIComponent(model)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code, language, fileName })
+                });
+
+                const data = await r.json();
+                if (!r.ok) { showSnippetError(data.error || 'Błąd analizy.'); return; }
+                renderResults(data);
+            } catch {
+                showSnippetError('Nie można połączyć z API. Czy serwer działa na localhost:5000?');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '⚡ Analizuj kod';
+                hideLoader();
+            }
+        }
+
+        // ── Repo review ───────────────────────────────────────
+        async function checkRepo() {
+            const path = document.getElementById('repoPath').value.trim();
+            if (!path) return showError('Podaj ścieżkę do repozytorium.');
+
+            try {
+                const r = await fetch(`${API}/git/info?path=${encodeURIComponent(path)}`);
+                const d = await r.json();
+                const preview = document.getElementById('repoPreview');
+                const content = document.getElementById('repoInfoContent');
+
+                if (!d.isValid) {
+                    content.innerHTML = `<span style="color:var(--red)">${d.error || 'Nieprawidłowe repozytorium'}</span>`;
+                } else {
+                    content.innerHTML = `
+            <div style="display:flex;gap:8px;align-items:center">
+              <span style="color:var(--text3)">Branch:</span>
+              <span style="color:var(--accent)">${d.branch}</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span style="color:var(--text3)">Commit:</span>
+              <span>${d.latestCommit}</span>
+              <span style="color:var(--text3);font-size:11px">${d.commitMessage}</span>
+            </div>
+            <div style="color:var(--text3);margin-top:4px">Pliki do analizy (${d.changedFiles.length}):</div>
+            ${d.changedFiles.map(f => `<div style="color:var(--text2);padding-left:8px">• ${f}</div>`).join('')}
+            ${d.changedFiles.length === 0 ? '<div style="color:var(--yellow)">Brak zmienionych plików.</div>' : ''}
+          `;
+                }
+                preview.style.display = 'block';
+            } catch {
+                showError('Nie można połączyć z API. Czy serwer działa na porcie 5000?');
+            }
+        }
+
+        async function startReview() {
+            const path = document.getElementById('repoPath').value.trim();
+            const model = document.getElementById('modelSelect').value;
+            if (!path) return showError('Podaj ścieżkę do repozytorium.');
+            clearError();
+
+            const btn = document.getElementById('reviewBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Analizuję...';
+            showLoader();
+
+            try {
+                const r = await fetch(`${API}/review?model=${encodeURIComponent(model)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repoPath: path, files: [], scope: 0 })
+                });
+                const data = await r.json();
+                if (!r.ok) { showError(data.error || 'Błąd podczas analizy.'); return; }
+                renderResults(data);
+            } catch {
+                showError('Nie można połączyć z API. Czy serwer działa na localhost:5000?');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '⚡ Uruchom Review';
+                hideLoader();
+            }
+        }
+
+        // ── Render results ────────────────────────────────────
+        function renderResults(data) {
+            const area = document.getElementById('resultsArea');
+            const scoreColor = data.summary.overallScore >= 80 ? 'var(--green)'
+                : data.summary.overallScore >= 60 ? 'var(--yellow)' : 'var(--red)';
+            const circ = Math.PI * 2 * 26;
+            const offset = circ * (1 - data.summary.overallScore / 100);
+
+            let html = `
+        <div class="summary-bar">
+          <div class="stat"><div class="stat-value" style="color:var(--red)">${data.summary.critical}</div><div class="stat-label">Krytyczne</div></div>
+          <div class="stat"><div class="stat-value" style="color:var(--yellow)">${data.summary.warnings}</div><div class="stat-label">Ostrzeżenia</div></div>
+          <div class="stat"><div class="stat-value" style="color:var(--accent)">${data.summary.info}</div><div class="stat-label">Informacje</div></div>
+          <div class="stat"><div class="stat-value" style="color:var(--text2)">${data.files.length}</div><div class="stat-label">Pliki</div></div>
+          <div class="score-ring">
+            <svg width="64" height="64" viewBox="0 0 64 64">
+              <circle cx="32" cy="32" r="26" fill="none" stroke="var(--border)" stroke-width="4"/>
+              <circle cx="32" cy="32" r="26" fill="none" stroke="${scoreColor}"
+                stroke-width="4" stroke-linecap="round"
+                stroke-dasharray="${circ}" stroke-dashoffset="${offset}"
+                style="transition:stroke-dashoffset 1s ease"/>
+            </svg>
+            <div class="score-ring-text" style="color:${scoreColor}">${data.summary.overallScore}</div>
+          </div>
+        </div>`;
+
+            if (data.summary.generalFeedback)
+                html += `<div class="general-feedback">💬 ${data.summary.generalFeedback}</div>`;
+
+            data.files.forEach((file, idx) => {
+                const crit = file.issues.filter(i => i.severity === 'Critical').length;
+                const warn = file.issues.filter(i => i.severity === 'Warning').length;
+                const info = file.issues.filter(i => i.severity === 'Info').length;
+                const fc = file.score >= 80 ? 'var(--green)' : file.score >= 60 ? 'var(--yellow)' : 'var(--red)';
+                html += `
+          <div class="file-card" id="card${idx}">
+            <div class="file-card-header" onclick="toggleCard(${idx})">
+              <div class="file-info">
+                <span class="file-lang">${file.language}</span>
+                <span class="file-path">${file.filePath}</span>
+              </div>
+              <div class="file-meta">
+                <div class="issue-counts">
+                  ${crit > 0 ? `<span class="badge critical">⚠ ${crit}</span>` : ''}
+                  ${warn > 0 ? `<span class="badge warning">! ${warn}</span>` : ''}
+                  ${info > 0 ? `<span class="badge info">i ${info}</span>` : ''}
+                </div>
+                <span class="file-score" style="color:${fc}">${file.score}/100</span>
+                <span class="chevron">▼</span>
+              </div>
+            </div>
+            <div class="file-issues">
+              ${file.issues.map(issue => `
+                <div class="issue-item">
+                  <div class="issue-severity"><div class="sev-bar ${issue.severity}"></div></div>
+                  <div class="issue-content">
+                    <div class="issue-title-row">
+                      <span class="issue-title">${issue.title}</span>
+                      <span class="issue-cat">${issue.category}</span>
+                      ${issue.line ? `<span class="issue-line">L${issue.line}</span>` : ''}
+                    </div>
+                    <div class="issue-desc">${issue.description}</div>
+                    ${issue.suggestion ? `<div class="issue-suggestion">${issue.suggestion}</div>` : ''}
+                  </div>
+                </div>`).join('')}
+              ${file.issues.length === 0 ? `<div style="padding:14px 16px;font-size:12px;color:var(--green)">✓ Brak problemów.</div>` : ''}
+            </div>
+          </div>`;
+            });
+
+            area.innerHTML = html;
+        }
+
+        function toggleCard(idx) { document.getElementById(`card${idx}`).classList.toggle('open'); }
+
+        function showLoader() {
+            document.getElementById('resultsArea').innerHTML = `
+        <div class="panel">
+          <div class="panel-header"><div class="dot"></div>Wyniki analizy</div>
+          <div class="loader active">
+            <div class="spinner"></div>
+            <div class="loader-text">Analizuję kod lokalnie (Ollama)...</div>
+            <div style="font-size:11px;color:var(--text3)">Może zająć 1–3 min</div>
+          </div>
+        </div>`;
+        }
+
+        function hideLoader() { }
+        function showError(msg) { const b = document.getElementById('errorBox'); b.textContent = '⚠ ' + msg; b.classList.add('active'); }
+        function clearError() { document.getElementById('errorBox').classList.remove('active'); }
+        function showSnippetError(msg) { const b = document.getElementById('snippetErrorBox'); b.textContent = '⚠ ' + msg; b.classList.add('active'); }
+        function clearSnippetError() { document.getElementById('snippetErrorBox').classList.remove('active'); }
+
+        checkOllama();
+        setInterval(checkOllama, 15000);
+    </script>
+</body>
+</html>
