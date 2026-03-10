@@ -34,7 +34,7 @@
                     <div class="panel">
                         <div class="panel-header">
                             <div class="dot"></div>
-                            Wklej kod do analizy
+                            Wklej kod lub dodaj pliki
                         </div>
                         <div class="form">
                             <div class="lang-row">
@@ -65,6 +65,18 @@
                                               oninput="updateLineCount()"></textarea>
                                     <span class="line-count" id="lineCount">0 linii</span>
                                 </div>
+                            </div>
+
+                            <!-- File upload -->
+                            <div>
+                                <label>Dodaj pliki</label>
+                                <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+                                    <input type="file" id="fileInput" multiple accept=".cs,.ts,.js,.py,.java,.go,.rs,.php,.txt" style="display:none" />
+                                    <span class="upload-icon">📂</span>
+                                    <span class="upload-text">Kliknij aby wybrać pliki lub przeciągnij tutaj</span>
+                                    <span class="upload-hint">.cs .ts .js .py .java .go .rs .php</span>
+                                </div>
+                                <div class="file-list" id="fileList"></div>
                             </div>
 
                             <div>
@@ -98,7 +110,6 @@
                                 <label>Ścieżka do repozytorium</label>
                                 <input type="text" id="repoPath" placeholder="C:\Projects\MyApp lub /home/user/myapp" />
                             </div>
-
                             <div>
                                 <label>Model Ollama</label>
                                 <div class="model-select-wrap">
@@ -108,7 +119,6 @@
                                     <span class="model-badge">LOCAL</span>
                                 </div>
                             </div>
-
                             <div>
                                 <label>Zakres analizy</label>
                                 <div class="checkbox-group" id="scopeChecks">
@@ -134,26 +144,16 @@
                                     </label>
                                 </div>
                             </div>
-
                             <div id="errorBox" class="error-box"></div>
-
-                            <button class="btn" id="reviewBtn" onclick="startReview()">
-                                ⚡ Uruchom Review
-                            </button>
-                            <button class="btn-secondary" onclick="checkRepo()">
-                                🔍 Podgląd plików do analizy
-                            </button>
+                            <button class="btn" id="reviewBtn" onclick="startReview()">⚡ Uruchom Review</button>
+                            <button class="btn-secondary" onclick="checkRepo()">🔍 Podgląd plików do analizy</button>
                         </div>
                     </div>
 
                     <div id="repoPreview" style="display:none; margin-top:16px;">
                         <div class="panel">
-                            <div class="panel-header">
-                                <div class="dot"></div>
-                                Info o repozytorium
-                            </div>
-                            <div style="padding:14px 18px; font-size:12px; display:flex; flex-direction:column; gap:8px;"
-                                 id="repoInfoContent"></div>
+                            <div class="panel-header"><div class="dot"></div>Info o repozytorium</div>
+                            <div style="padding:14px 18px; font-size:12px; display:flex; flex-direction:column; gap:8px;" id="repoInfoContent"></div>
                         </div>
                     </div>
                 </div>
@@ -162,18 +162,10 @@
             <!-- Right: Results -->
             <div class="results-area" id="resultsArea">
                 <div class="panel">
-                    <div class="panel-header">
-                        <div class="dot"></div>
-                        Wyniki analizy
-                    </div>
-                    <div class="empty-state" id="emptyState">
+                    <div class="panel-header"><div class="dot"></div>Wyniki analizy</div>
+                    <div class="empty-state">
                         <div class="empty-icon">🔬</div>
-                        <p>Wprowadź ścieżkę do repozytorium i uruchom review, aby zobaczyć wyniki.</p>
-                    </div>
-                    <div class="loader" id="loader">
-                        <div class="spinner"></div>
-                        <div class="loader-text">Analizuję kod lokalnie (Ollama)...</div>
-                        <div class="loader-file" id="loaderFile">Uruchamianie modelu...</div>
+                        <p>Wklej kod, dodaj pliki lub podaj ścieżkę do repo i uruchom analizę.</p>
                     </div>
                 </div>
             </div>

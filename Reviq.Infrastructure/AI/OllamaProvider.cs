@@ -1,8 +1,8 @@
-﻿using Microsoft.Extensions.Logging;
-using Reviq.Application.Interfaces;
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using Reviq.Application.Interfaces;
 
 namespace Reviq.Infrastructure.AI;
 
@@ -95,7 +95,9 @@ public class OllamaProvider(HttpClient httpClient, ILogger<OllamaProvider> logge
         sb.AppendLine("      \"line\": <line number or null>,");
         sb.AppendLine("      \"title\": \"<short title>\",");
         sb.AppendLine("      \"description\": \"<detailed description>\",");
-        sb.AppendLine("      \"suggestion\": \"<concrete fix suggestion>\"");
+        sb.AppendLine("      \"suggestion\": \"<concrete fix suggestion>\",");
+        sb.AppendLine("      \"codeBefore\": \"<original problematic code snippet, max 10 lines>\",");
+        sb.AppendLine("      \"codeAfter\": \"<fixed version of the code snippet, max 10 lines>\"");
         sb.AppendLine("    }");
         sb.AppendLine("  ],");
         sb.AppendLine("  \"summary\": \"<2-3 sentence overall feedback>\"");
@@ -103,6 +105,8 @@ public class OllamaProvider(HttpClient httpClient, ILogger<OllamaProvider> logge
         sb.AppendLine();
         sb.AppendLine("severity: Critical=bugs/security holes, Warning=bad practices, Info=style/minor");
         sb.AppendLine("category: Bug=logic errors, Security=injections/auth, BestPractice=SOLID/DRY, Refactor=smells/complexity");
+        sb.AppendLine("codeBefore: extract the exact problematic lines from the code above");
+        sb.AppendLine("codeAfter: show the corrected version of those same lines");
         sb.AppendLine("Return valid JSON only. No markdown code blocks.");
         return sb.ToString();
     }

@@ -1,10 +1,10 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Reviq.Application.DTOs;
 using Reviq.Application.Interfaces;
 using Reviq.Domain.Entities;
 using Reviq.Domain.Enums;
 using Reviq.Domain.Interfaces;
-using System.Text.Json;
 
 namespace Reviq.Application.UseCases.RunReview;
 
@@ -67,38 +67,23 @@ public class RunReviewHandler(
         return ReviewResultDto.FromDomain(result);
     }
 
+    public void SetModel(string model) => aiProvider.SetModel(model);
+
     public async Task<ReviewResultDto> HandleRawCodeAsync(CodeReviewRequestDto request)
     {
-        var fileReview = await ReviewSingleFileAsync(
-            request.FileName,
-            request.Code,
-            request.Language
-        );
+        var rawJson = await aiProvider.ReviewCodeAsync(request.Code, request.Language, request.FileName);
+        var fileReview = ParseAIResponse(rawJson, request.FileName, request.Language);
 
         var result = new ReviewResult
         {
-            RepoPath = "snippet",
-            Branch = "-",
-            CommitHash = "-",
+            RepoPath = "",
+            Branch = "",
+            CommitHash = "",
             Files = new List<FileReview> { fileReview },
             Summary = BuildSummary(new List<FileReview> { fileReview })
         };
 
-        await reviewRepository.SaveAsync(result);
         return ReviewResultDto.FromDomain(result);
-    }
-
-    private async Task<FileReview> ReviewSingleFileAsync(string fileName, string code, string language)
-    {
-        try
-        {
-            var rawJson = await aiProvider.ReviewCodeAsync(code, language, fileName);
-            return ParseAIResponse(rawJson, fileName, language);
-        }
-        catch (Exception ex)
-        {
-            return BuildFallbackReview(fileName, language, ex.Message);
-        }
     }
 
     private static FileReview ParseAIResponse(string rawJson, string filePath, string language)
@@ -129,7 +114,9 @@ public class RunReviewHandler(
                         Category = ParseEnum<IssueCategory>(el, "category"),
                         Title = GetString(el, "title"),
                         Description = GetString(el, "description"),
-                        Suggestion = el.TryGetProperty("suggestion", out var sg) ? sg.GetString() : null
+                        Suggestion = el.TryGetProperty("suggestion", out var sg) ? sg.GetString() : null,
+                        CodeBefore = el.TryGetProperty("codeBefore", out var cb) ? cb.GetString() : null,
+                        CodeAfter = el.TryGetProperty("codeAfter", out var ca) ? ca.GetString() : null,
                     };
 
                     if (el.TryGetProperty("line", out var line) && line.ValueKind == JsonValueKind.Number)

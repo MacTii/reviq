@@ -10,4 +10,6 @@ public class ReviewIssue
     public string Title { get; set; } = "";
     public string Description { get; set; } = "";
     public string? Suggestion { get; set; }
+    public string? CodeBefore { get; set; }
+    public string? CodeAfter { get; set; }
 }

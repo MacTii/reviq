@@ -15,7 +15,6 @@ async function checkOllama() {
         const d = await r.json();
         const dot = document.getElementById('ollamaDot');
         const txt = document.getElementById('ollamaStatusText');
-
         if (d.available) {
             dot.className = 'status-dot online';
             txt.textContent = `Ollama online · ${d.models.length} model${d.models.length !== 1 ? 'i' : ''}`;
@@ -53,11 +52,7 @@ function updateLineCount() {
     const code = document.getElementById('snippetCode').value;
     const lines = code ? code.split('\n').length : 0;
     document.getElementById('lineCount').textContent = `${lines} linii`;
-
-    const ext = {
-        'C#': '.cs', 'TypeScript': '.ts', 'JavaScript': '.js',
-        'Python': '.py', 'Java': '.java', 'Go': '.go', 'Rust': '.rs', 'PHP': '.php'
-    };
+    const ext = { 'C#': '.cs', 'TypeScript': '.ts', 'JavaScript': '.js', 'Python': '.py', 'Java': '.java', 'Go': '.go', 'Rust': '.rs', 'PHP': '.php' };
     const lang = document.getElementById('snippetLang').value;
     const fn = document.getElementById('snippetFileName');
     if (fn.value === 'snippet.cs' || fn.value.startsWith('snippet.')) {
@@ -67,68 +62,141 @@ function updateLineCount() {
 
 document.getElementById('snippetLang').addEventListener('change', updateLineCount);
 
+// ── File upload ───────────────────────────────────────────────────────────────
+const uploadedFiles = [];
+
+document.getElementById('fileInput').addEventListener('change', e => {
+    Array.from(e.target.files).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = ev => {
+            const exists = uploadedFiles.findIndex(f => f.name === file.name);
+            if (exists >= 0) uploadedFiles.splice(exists, 1);
+            uploadedFiles.push({ name: file.name, content: ev.target.result });
+            renderFileList();
+        };
+        reader.readAsText(file);
+    });
+    e.target.value = '';
+});
+
+function removeFile(name) {
+    const idx = uploadedFiles.findIndex(f => f.name === name);
+    if (idx >= 0) uploadedFiles.splice(idx, 1);
+    renderFileList();
+}
+
+function renderFileList() {
+    const list = document.getElementById('fileList');
+    if (uploadedFiles.length === 0) {
+        list.innerHTML = '';
+        list.style.display = 'none';
+        return;
+    }
+    list.style.display = 'flex';
+    list.innerHTML = uploadedFiles.map(f => `
+        <div class="file-tag">
+            <span class="file-tag-name">${escapeHtml(f.name)}</span>
+            <span class="file-tag-remove" onclick="removeFile('${escapeHtml(f.name)}')" title="Usuń">✕</span>
+        </div>`).join('');
+}
+
 // ── Snippet review ────────────────────────────────────────────────────────────
 async function startSnippetReview() {
-    const code = document.getElementById('snippetCode').value.trim();
+    const singleCode = document.getElementById('snippetCode').value.trim();
     const language = document.getElementById('snippetLang').value;
     const fileName = document.getElementById('snippetFileName').value.trim() || 'snippet.cs';
     const model = document.getElementById('snippetModel').value;
 
-    if (!code) return showSnippetError('Wklej kod do analizy.');
+    // Budujemy listę plików: wklejony kod + uploady
+    const filesToReview = [];
+
+    if (singleCode) {
+        filesToReview.push({ code: singleCode, language, fileName });
+    }
+
+    uploadedFiles.forEach(f => {
+        const lang = detectLang(f.name);
+        filesToReview.push({ code: f.content, language: lang, fileName: f.name });
+    });
+
+    if (filesToReview.length === 0) return showSnippetError('Wklej kod lub dodaj plik do analizy.');
     clearSnippetError();
 
     const btn = document.getElementById('snippetBtn');
     btn.disabled = true;
-    btn.textContent = '⏳ Analizuję...';
-    showLoader();
+    btn.textContent = `⏳ Analizuję ${filesToReview.length} plik${filesToReview.length > 1 ? 'i' : ''}...`;
+    showLoader(`Analizuję ${filesToReview.length} plik${filesToReview.length > 1 ? 'ów' : ''}...`);
 
     try {
-        const r = await fetch(`${API}/code/review?model=${encodeURIComponent(model)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code, language, fileName })
-        });
+        // Wysyłamy każdy plik osobno i zbieramy wyniki
+        const allResults = [];
+        for (const f of filesToReview) {
+            const r = await fetch(`${API}/code/review?model=${encodeURIComponent(model)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: f.code, language: f.language, fileName: f.fileName })
+            });
+            const data = await r.json();
+            if (!r.ok) { showSnippetError(data.error || 'Błąd analizy.'); return; }
+            allResults.push(data);
+        }
 
-        const data = await r.json();
-        if (!r.ok) { showSnippetError(data.error || 'Błąd analizy.'); return; }
-        renderResults(data);
+        if (allResults.length === 1) {
+            renderResults(allResults[0]);
+        } else {
+            renderMultiResults(allResults);
+        }
     } catch {
         showSnippetError('Nie można połączyć z API.');
     } finally {
         btn.disabled = false;
         btn.textContent = '⚡ Analizuj kod';
-        hideLoader();
     }
+}
+
+function detectLang(fileName) {
+    const ext = fileName.split('.').pop().toLowerCase();
+    return { cs: 'C#', ts: 'TypeScript', js: 'JavaScript', py: 'Python', java: 'Java', go: 'Go', rs: 'Rust', php: 'PHP' }[ext] || 'Unknown';
+}
+
+function renderMultiResults(results) {
+    // Sklejamy wyniki wielu plików w jeden widok
+    const merged = {
+        summary: {
+            critical: results.reduce((s, r) => s + (r.summary?.critical ?? 0), 0),
+            warnings: results.reduce((s, r) => s + (r.summary?.warnings ?? 0), 0),
+            info: results.reduce((s, r) => s + (r.summary?.info ?? 0), 0),
+            overallScore: Math.round(results.reduce((s, r) => s + (r.summary?.overallScore ?? 0), 0) / results.length),
+            generalFeedback: `Przeanalizowano ${results.length} pliki.`
+        },
+        files: results.flatMap(r => r.files ?? [])
+    };
+    renderResults(merged);
 }
 
 // ── Repo review ───────────────────────────────────────────────────────────────
 async function checkRepo() {
     const path = document.getElementById('repoPath').value.trim();
     if (!path) return showError('Podaj ścieżkę do repozytorium.');
-
     try {
         const r = await fetch(`${API}/git/info?path=${encodeURIComponent(path)}`);
         const d = await r.json();
         const preview = document.getElementById('repoPreview');
         const content = document.getElementById('repoInfoContent');
-
         if (!d.isValid) {
             content.innerHTML = `<span style="color:var(--red)">${d.error || 'Nieprawidłowe repozytorium'}</span>`;
         } else {
             content.innerHTML = `
                 <div style="display:flex;gap:8px;align-items:center">
-                    <span style="color:var(--text3)">Branch:</span>
-                    <span style="color:var(--accent)">${d.branch}</span>
+                    <span style="color:var(--text3)">Branch:</span><span style="color:var(--accent)">${d.branch}</span>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center">
-                    <span style="color:var(--text3)">Commit:</span>
-                    <span>${d.latestCommit}</span>
+                    <span style="color:var(--text3)">Commit:</span><span>${d.latestCommit}</span>
                     <span style="color:var(--text3);font-size:11px">${d.commitMessage}</span>
                 </div>
                 <div style="color:var(--text3);margin-top:4px">Pliki do analizy (${d.changedFiles.length}):</div>
                 ${d.changedFiles.map(f => `<div style="color:var(--text2);padding-left:8px">• ${f}</div>`).join('')}
-                ${d.changedFiles.length === 0 ? '<div style="color:var(--yellow)">Brak zmienionych plików.</div>' : ''}
-            `;
+                ${d.changedFiles.length === 0 ? '<div style="color:var(--yellow)">Brak zmienionych plików.</div>' : ''}`;
         }
         preview.style.display = 'block';
     } catch {
@@ -161,17 +229,16 @@ async function startReview() {
     } finally {
         btn.disabled = false;
         btn.textContent = '⚡ Uruchom Review';
-        hideLoader();
     }
 }
 
 // ── Render results ────────────────────────────────────────────────────────────
 function renderResults(data) {
     const area = document.getElementById('resultsArea');
-    const scoreColor = data.summary.overallScore >= 80 ? 'var(--green)'
-        : data.summary.overallScore >= 60 ? 'var(--yellow)' : 'var(--red)';
+    const score = data.summary.overallScore;
+    const scoreColor = score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--yellow)' : 'var(--red)';
     const circ = Math.PI * 2 * 26;
-    const offset = circ * (1 - data.summary.overallScore / 100);
+    const offset = circ * (1 - score / 100);
 
     let html = `
         <div class="summary-bar">
@@ -187,7 +254,7 @@ function renderResults(data) {
                         stroke-dasharray="${circ}" stroke-dashoffset="${offset}"
                         style="transition:stroke-dashoffset 1s ease"/>
                 </svg>
-                <div class="score-ring-text" style="color:${scoreColor}">${data.summary.overallScore}</div>
+                <div class="score-ring-text" style="color:${scoreColor}">${score}</div>
             </div>
         </div>`;
 
@@ -204,8 +271,8 @@ function renderResults(data) {
             <div class="file-card" id="card${idx}">
                 <div class="file-card-header" onclick="toggleCard(${idx})">
                     <div class="file-info">
-                        <span class="file-lang">${file.language}</span>
-                        <span class="file-path">${file.filePath}</span>
+                        <span class="file-lang">${escapeHtml(file.language)}</span>
+                        <span class="file-path">${escapeHtml(file.filePath)}</span>
                     </div>
                     <div class="file-meta">
                         <div class="issue-counts">
@@ -218,22 +285,8 @@ function renderResults(data) {
                     </div>
                 </div>
                 <div class="file-issues">
-                    ${file.issues.map(issue => `
-                        <div class="issue-item">
-                            <div class="issue-severity"><div class="sev-bar ${issue.severity}"></div></div>
-                            <div class="issue-content">
-                                <div class="issue-title-row">
-                                    <span class="issue-title">${issue.title}</span>
-                                    <span class="issue-cat">${issue.category}</span>
-                                    ${issue.line ? `<span class="issue-line">L${issue.line}</span>` : ''}
-                                </div>
-                                <div class="issue-desc">${issue.description}</div>
-                                ${issue.suggestion ? `<div class="issue-suggestion">${issue.suggestion}</div>` : ''}
-                            </div>
-                        </div>`).join('')}
-                    ${file.issues.length === 0
-                ? `<div style="padding:14px 16px;font-size:12px;color:var(--green)">✓ Brak problemów.</div>`
-                : ''}
+                    ${file.issues.map((issue, iIdx) => renderIssue(issue, idx, iIdx)).join('')}
+                    ${file.issues.length === 0 ? `<div style="padding:14px 16px;font-size:12px;color:var(--green)">✓ Brak problemów.</div>` : ''}
                 </div>
             </div>`;
     });
@@ -241,24 +294,80 @@ function renderResults(data) {
     area.innerHTML = html;
 }
 
+function renderIssue(issue, cardIdx, issueIdx) {
+    const sevClass = issue.severity; // Critical | Warning | Info
+    const diffId = `diff-${cardIdx}-${issueIdx}`;
+    const hasDiff = issue.codeBefore || issue.codeAfter;
+
+    return `
+        <div class="issue-item">
+            <div class="issue-severity"><div class="sev-bar ${sevClass}"></div></div>
+            <div class="issue-content">
+                <div class="issue-title-row">
+                    <span class="issue-badge ${sevClass.toLowerCase()}">${sevLabel(issue.severity)}</span>
+                    <span class="issue-title">${escapeHtml(issue.title)}</span>
+                    <span class="issue-cat">${escapeHtml(issue.category)}</span>
+                    ${issue.line ? `<span class="issue-line">L${issue.line}</span>` : ''}
+                </div>
+                <div class="issue-desc">${escapeHtml(issue.description)}</div>
+                ${issue.suggestion ? `<div class="issue-suggestion">${escapeHtml(issue.suggestion)}</div>` : ''}
+                ${hasDiff ? `
+                <div class="diff-toggle" onclick="toggleDiff('${diffId}')">
+                    <span>⟨/⟩ Pokaż kod do zmiany</span>
+                </div>
+                <div class="diff-block" id="${diffId}" style="display:none">
+                    ${issue.codeBefore ? `
+                    <div class="diff-section">
+                        <div class="diff-label before">❌ Przed</div>
+                        <pre class="diff-code before">${escapeHtml(issue.codeBefore)}</pre>
+                    </div>` : ''}
+                    ${issue.codeAfter ? `
+                    <div class="diff-section">
+                        <div class="diff-label after">✅ Po</div>
+                        <pre class="diff-code after">${escapeHtml(issue.codeAfter)}</pre>
+                    </div>` : ''}
+                </div>` : ''}
+            </div>
+        </div>`;
+}
+
+function sevLabel(sev) {
+    return { Critical: 'KRYTYCZNY', Warning: 'OSTRZEŻENIE', Info: 'INFO' }[sev] ?? sev;
+}
+
+function toggleDiff(id) {
+    const el = document.getElementById(id);
+    const btn = el.previousElementSibling;
+    if (el.style.display === 'none') {
+        el.style.display = 'block';
+        btn.querySelector('span').textContent = '⟨/⟩ Ukryj kod';
+    } else {
+        el.style.display = 'none';
+        btn.querySelector('span').textContent = '⟨/⟩ Pokaż kod do zmiany';
+    }
+}
+
 function toggleCard(idx) {
     document.getElementById(`card${idx}`).classList.toggle('open');
 }
 
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 // ── Loader ────────────────────────────────────────────────────────────────────
-function showLoader() {
+function showLoader(msg = 'Analizuję kod lokalnie (Ollama)...') {
     document.getElementById('resultsArea').innerHTML = `
         <div class="panel">
             <div class="panel-header"><div class="dot"></div>Wyniki analizy</div>
             <div class="loader active">
                 <div class="spinner"></div>
-                <div class="loader-text">Analizuję kod lokalnie (Ollama)...</div>
+                <div class="loader-text">${escapeHtml(msg)}</div>
                 <div style="font-size:11px;color:var(--text3)">Może zająć 1–3 min</div>
             </div>
         </div>`;
 }
-
-function hideLoader() { }
 
 // ── Error helpers ─────────────────────────────────────────────────────────────
 function showError(msg) { const b = document.getElementById('errorBox'); b.textContent = '⚠ ' + msg; b.classList.add('active'); }
