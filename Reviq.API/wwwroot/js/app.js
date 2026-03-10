@@ -33,7 +33,7 @@ async function checkOllama() {
                 d.models.forEach(m => {
                     const opt = document.createElement('option');
                     opt.value = m;
-                    opt.textContent = m + (m.includes('deepseek-coder-v2') ? ' (zalecany)' : '');
+                    opt.textContent = m;
                     sel.appendChild(opt);
                 });
             });
@@ -471,13 +471,8 @@ function _renderResults(data, area, isMain, prefix) {
     area.innerHTML = html;
 
     if (isMain) {
-        const exportBar = document.createElement('div');
-        exportBar.className = 'export-bar';
-        exportBar.innerHTML = `
-            <span class="export-label">Eksportuj raport:</span>
-            <button class="export-btn" onclick="exportHTML()">⬇ HTML</button>
-            <button class="export-btn" onclick="exportPDF()">🖨 PDF</button>`;
-        area.appendChild(exportBar);
+        document.getElementById('exportHtmlBtn').disabled = false;
+        document.getElementById('exportPdfBtn').disabled = false;
     }
 }
 

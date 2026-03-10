@@ -273,21 +273,24 @@ input, select {
 }
 
 .model-select-wrap {
-    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
+    .model-select-wrap select {
+        flex: 1;
+    }
+
 .model-badge {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
     font-size: 10px;
     color: var(--accent);
     background: rgba(79,142,247,0.1);
     border: 1px solid rgba(79,142,247,0.2);
     padding: 2px 6px;
     border-radius: 4px;
-    pointer-events: none;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 /* ── Checkboxes ── */
@@ -501,6 +504,7 @@ textarea.code-input {
     gap: 16px;
     align-items: center;
     animation: fadeUp 0.4s ease;
+    margin-bottom: 10px;
 }
 
 @keyframes fadeUp {
@@ -563,6 +567,7 @@ textarea.code-input {
     border-radius: 12px;
     overflow: hidden;
     animation: fadeUp 0.4s ease;
+    margin-bottom: 10px;
 }
 
 .file-card-header {
@@ -771,6 +776,7 @@ textarea.code-input {
     color: var(--text2);
     line-height: 1.7;
     animation: fadeUp 0.4s ease;
+    margin-bottom: 10px;
 }
 
 /* ── Error box ── */
@@ -987,7 +993,7 @@ textarea.code-input {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 12px;
-    margin-top: 4px;
+    margin-bottom: 10px;
 }
 
 .export-label {
@@ -1010,10 +1016,15 @@ textarea.code-input {
     transition: border-color 0.2s, color 0.2s, background 0.2s;
 }
 
-    .export-btn:hover {
+    .export-btn:hover:not(:disabled) {
         border-color: var(--accent);
         color: var(--text);
         background: rgba(79,142,247,0.06);
+    }
+
+    .export-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
     }
 
 /* ── Filter bar ───────────────────────────────────────────────────────────── */
@@ -1026,6 +1037,7 @@ textarea.code-input {
     flex-wrap: wrap;
     gap: 10px;
     align-items: center;
+    margin-bottom: 10px;
 }
 
 .filter-group {
