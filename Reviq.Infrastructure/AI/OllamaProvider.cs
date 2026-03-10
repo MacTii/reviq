@@ -54,7 +54,7 @@ public class OllamaProvider(HttpClient httpClient, ILogger<OllamaProvider> logge
             model = CurrentModel,
             prompt = BuildPrompt(code, language, filePath),
             stream = false,
-            options = new { temperature = 0.1f, num_predict = 3000 }
+            options = new { temperature = 0.1f, num_predict = 6000 }
         };
 
         try
@@ -96,17 +96,20 @@ public class OllamaProvider(HttpClient httpClient, ILogger<OllamaProvider> logge
         sb.AppendLine("      \"title\": \"<short title>\",");
         sb.AppendLine("      \"description\": \"<detailed description>\",");
         sb.AppendLine("      \"suggestion\": \"<concrete fix suggestion>\",");
-        sb.AppendLine("      \"codeBefore\": \"<original problematic code snippet, max 10 lines>\",");
-        sb.AppendLine("      \"codeAfter\": \"<fixed version of the code snippet, max 10 lines>\"");
+        sb.AppendLine("      \"codeBefore\": \"<ONLY the specific problematic lines, 3-8 lines max, copied verbatim from the code above>\",");
+        sb.AppendLine("      \"codeAfter\": \"<ONLY those same lines rewritten to fix the issue, same length as codeBefore>\"");
         sb.AppendLine("    }");
         sb.AppendLine("  ],");
         sb.AppendLine("  \"summary\": \"<2-3 sentence overall feedback>\"");
         sb.AppendLine("}");
         sb.AppendLine();
+        sb.AppendLine("IMPORTANT rules for codeBefore/codeAfter:");
+        sb.AppendLine("- codeBefore: extract ONLY the exact lines that have the problem, not the whole method");
+        sb.AppendLine("- codeAfter: rewrite ONLY those same lines with the fix applied");
+        sb.AppendLine("- Both must be short, focused, and clearly show the before/after difference");
+        sb.AppendLine("- If the fix requires a new method, show the old call site vs new call site");
         sb.AppendLine("severity: Critical=bugs/security holes, Warning=bad practices, Info=style/minor");
         sb.AppendLine("category: Bug=logic errors, Security=injections/auth, BestPractice=SOLID/DRY, Refactor=smells/complexity");
-        sb.AppendLine("codeBefore: extract the exact problematic lines from the code above");
-        sb.AppendLine("codeAfter: show the corrected version of those same lines");
         sb.AppendLine("Return valid JSON only. No markdown code blocks.");
         return sb.ToString();
     }

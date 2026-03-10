@@ -88,13 +88,7 @@ public class RunReviewHandler(
 
     private static FileReview ParseAIResponse(string rawJson, string filePath, string language)
     {
-        var json = rawJson.Trim();
-        if (json.StartsWith("```"))
-        {
-            json = string.Join('\n', json.Split('\n').Skip(1));
-            if (json.TrimEnd().EndsWith("```"))
-                json = json[..json.LastIndexOf("```")].Trim();
-        }
+        var json = ExtractJson(rawJson);
 
         try
         {
@@ -186,4 +180,53 @@ public class RunReviewHandler(
 
     private static string GetString(JsonElement el, string prop) =>
         el.TryGetProperty(prop, out var v) ? v.GetString() ?? "" : "";
+
+    /// <summary>
+    /// Wyciąga poprawny JSON z odpowiedzi modelu — obsługuje markdown, tekst przed/po JSON
+    /// oraz obcięte odpowiedzi (uzupełnia brakujące nawiasy).
+    /// </summary>
+    private static string ExtractJson(string raw)
+    {
+        var text = raw.Trim();
+
+        // Usuń bloki markdown ```json ... ```
+        if (text.StartsWith("```"))
+        {
+            var lines = text.Split('\n').ToList();
+            lines.RemoveAt(0);
+            if (lines.LastOrDefault()?.TrimEnd() == "```")
+                lines.RemoveAt(lines.Count - 1);
+            text = string.Join('\n', lines).Trim();
+        }
+
+        // Znajdź pierwszy { i wytnij od niego
+        var start = text.IndexOf('{');
+        if (start > 0) text = text[start..];
+
+        // Jeśli JSON jest obcięty — spróbuj go zamknąć
+        if (!IsValidJson(text))
+        {
+            // Znajdź ostatni kompletny issue i zamknij tablicę + obiekt
+            var lastComma = text.LastIndexOf("},");
+            var lastBrace = text.LastIndexOf('}');
+            var cutPoint = Math.Max(lastComma, lastBrace);
+            if (cutPoint > 0)
+            {
+                text = text[..(cutPoint + 1)];
+                // Zamknij "issues" i główny obiekt
+                var openBraces = text.Count(c => c == '{') - text.Count(c => c == '}');
+                var openBrackets = text.Count(c => c == '[') - text.Count(c => c == ']');
+                text += new string(']', Math.Max(0, openBrackets));
+                text += new string('}', Math.Max(0, openBraces));
+            }
+        }
+
+        return text;
+    }
+
+    private static bool IsValidJson(string text)
+    {
+        try { JsonDocument.Parse(text); return true; }
+        catch { return false; }
+    }
 }
