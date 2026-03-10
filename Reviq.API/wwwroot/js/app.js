@@ -8,6 +8,14 @@ function switchTab(tab) {
     document.getElementById('contentRepo').classList.toggle('active', tab === 'repo');
 }
 
+function showPage(page) {
+    document.getElementById('pageAnalyze').style.display = page === 'analyze' ? '' : 'none';
+    document.getElementById('pageHistory').style.display = page === 'history' ? '' : 'none';
+    document.getElementById('navAnalyze').classList.toggle('active', page === 'analyze');
+    document.getElementById('navHistory').classList.toggle('active', page === 'history');
+    if (page === 'history') loadHistory();
+}
+
 // ── Ollama status ─────────────────────────────────────────────────────────────
 async function checkOllama() {
     try {
@@ -128,24 +136,22 @@ async function startSnippetReview() {
     showLoader(`Analizuję ${filesToReview.length} plik${filesToReview.length > 1 ? 'ów' : ''}...`);
 
     try {
-        // Wysyłamy każdy plik osobno i zbieramy wyniki
-        const allResults = [];
-        for (const f of filesToReview) {
-            const r = await fetch(`${API}/code/review?model=${encodeURIComponent(model)}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: f.code, language: f.language, fileName: f.fileName })
-            });
-            const data = await r.json();
-            if (!r.ok) { showSnippetError(data.error || 'Błąd analizy.'); return; }
-            allResults.push(data);
-        }
+        const res = await fetch(`${API}/code/review-batch?model=${encodeURIComponent(model)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                files: filesToReview.map(f => ({
+                    code: f.code,
+                    language: f.language,
+                    fileName: f.fileName
+                }))
+            })
+        });
 
-        if (allResults.length === 1) {
-            renderResults(allResults[0]);
-        } else {
-            renderMultiResults(allResults);
-        }
+        const data = await res.json();
+        if (!res.ok) { showSnippetError(data.error || 'Błąd analizy.'); return; }
+
+        renderResults(data);
     } catch (err) {
         showSnippetError(`Błąd: ${err.message}`);
     } finally {
@@ -294,9 +300,9 @@ function updateFilterCount() {
     if (countEl) countEl.textContent = hidden > 0 ? `(ukryto ${hidden} z ${total})` : '';
 }
 
-function ignoreIssue(fileIdx, issueIdx) {
-    const key = `${fileIdx}-${issueIdx}`;
-    const el = document.getElementById(`issue-${fileIdx}-${issueIdx}`);
+function ignoreIssue(cardIdx, issueIdx) {
+    const key = `${cardIdx}-${issueIdx}`;
+    const el = document.getElementById(`issue-${cardIdx}-${issueIdx}`);
     const btn = el?.querySelector('.ignore-btn');
 
     if (_ignoredIssues.has(key)) {
@@ -364,10 +370,20 @@ function restoreIgnored() {
     applyFilters();
 }
 
+function renderResultsInto(data, area) {
+    // Unikalny prefix żeby ID nie kolidowały z głównym widokiem
+    const prefix = 'h' + Math.random().toString(36).slice(2, 7);
+    _renderResults(data, area, false, prefix);
+}
+
 function renderResults(data) {
     _lastResults = data;
     _ignoredIssues.clear();
     const area = document.getElementById('resultsArea');
+    _renderResults(data, area, true, '');
+}
+
+function _renderResults(data, area, isMain, prefix) {
     const score = data.summary.overallScore;
     const scoreColor = score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--yellow)' : 'var(--red)';
     const circ = Math.PI * 2 * 26;
@@ -423,10 +439,11 @@ function renderResults(data) {
         const warn = file.issues.filter(i => i.severity === 'Warning').length;
         const info = file.issues.filter(i => i.severity === 'Info').length;
         const fc = file.score >= 80 ? 'var(--green)' : file.score >= 60 ? 'var(--yellow)' : 'var(--red)';
+        const cardId = `${prefix}card${idx}`;
 
         html += `
-            <div class="file-card" id="card${idx}">
-                <div class="file-card-header" onclick="toggleCard(${idx})">
+            <div class="file-card" id="${cardId}">
+                <div class="file-card-header" onclick="toggleCard('${cardId}')">
                     <div class="file-info">
                         <span class="file-lang">${escapeHtml(file.language)}</span>
                         <span class="file-path">${escapeHtml(file.filePath)}</span>
@@ -442,8 +459,8 @@ function renderResults(data) {
                     </div>
                 </div>
                 <div class="file-issues">
-                    ${file.issues.map((issue, iIdx) => renderIssue(issue, idx, iIdx)).join('')}
-                    <div id="empty-${idx}" class="no-issues-msg" style="display:none">
+                    ${file.issues.map((issue, iIdx) => renderIssue(issue, `${prefix}${idx}`, iIdx, isMain)).join('')}
+                    <div id="${prefix}empty-${idx}" class="no-issues-msg" style="display:none">
                         ✓ Wszystkie issues ukryte lub przefiltrowane.
                     </div>
                     ${file.issues.length === 0 ? `<div style="padding:14px 16px;font-size:12px;color:var(--green)">✓ Brak problemów.</div>` : ''}
@@ -453,17 +470,15 @@ function renderResults(data) {
 
     area.innerHTML = html;
 
-    // Przyciski eksportu
-    const exportBar = document.createElement('div');
-    exportBar.className = 'export-bar';
-    exportBar.innerHTML = `
-        <span class="export-label">Eksportuj raport:</span>
-        <button class="export-btn" onclick="exportHTML()">⬇ HTML</button>
-        <button class="export-btn" onclick="exportPDF()">🖨 PDF</button>`;
-    area.appendChild(exportBar);
-
-    // Przelicz score od razu żeby był spójny (100 - kary)
-    recalculateSummary();
+    if (isMain) {
+        const exportBar = document.createElement('div');
+        exportBar.className = 'export-bar';
+        exportBar.innerHTML = `
+            <span class="export-label">Eksportuj raport:</span>
+            <button class="export-btn" onclick="exportHTML()">⬇ HTML</button>
+            <button class="export-btn" onclick="exportPDF()">🖨 PDF</button>`;
+        area.appendChild(exportBar);
+    }
 }
 
 function stripCodeFences(str) {
@@ -471,7 +486,7 @@ function stripCodeFences(str) {
     return str.replace(/^```[\w]*\n?/m, '').replace(/\n?```$/m, '').trim();
 }
 
-function renderIssue(issue, cardIdx, issueIdx) {
+function renderIssue(issue, cardIdx, issueIdx, isMain = true) {
     const sevClass = issue.severity;
     const diffId = `diff-${cardIdx}-${issueIdx}`;
     const hasDiff = issue.codeBefore || issue.codeAfter;
@@ -485,7 +500,7 @@ function renderIssue(issue, cardIdx, issueIdx) {
                     <span class="issue-title">${escapeHtml(issue.title)}</span>
                     <span class="issue-cat">${escapeHtml(issue.category)}</span>
                     ${issue.line ? `<span class="issue-line">L${issue.line}</span>` : ''}
-                    <button class="ignore-btn" onclick="ignoreIssue(${cardIdx},${issueIdx})" title="Oznacz jako false positive">✕ ignoruj</button>
+                    ${isMain ? `<button class="ignore-btn" onclick="ignoreIssue('${cardIdx}',${issueIdx})" title="Oznacz jako false positive">✕ ignoruj</button>` : ''}
                 </div>
                 <div class="issue-desc">${escapeHtml(issue.description)}</div>
                 ${issue.suggestion ? `<div class="issue-suggestion">${escapeHtml(issue.suggestion)}</div>` : ''}
@@ -525,8 +540,8 @@ function toggleDiff(id) {
     }
 }
 
-function toggleCard(idx) {
-    document.getElementById(`card${idx}`).classList.toggle('open');
+function toggleCard(cardId) {
+    document.getElementById(cardId).classList.toggle('open');
 }
 
 function escapeHtml(str) {
@@ -686,3 +701,113 @@ function exportPDF() {
 // ── Init ──────────────────────────────────────────────────────────────────────
 checkOllama();
 setInterval(checkOllama, 15000);
+
+// ── History ───────────────────────────────────────────────────────────────────
+async function loadHistory() {
+    const container = document.getElementById('historyList');
+    container.innerHTML = `<div class="history-loading">Ładowanie historii...</div>`;
+
+    try {
+        const res = await fetch(`${API}/history`);
+        const data = await res.json();
+
+        if (!data.length) {
+            container.innerHTML = `<div class="history-empty">📭 Brak poprzednich analiz w tej sesji.</div>`;
+            return;
+        }
+
+        container.innerHTML = data.map(item => {
+            const date = new Date(item.createdAt).toLocaleString('pl-PL');
+            const score = item.overallScore;
+            const sc = score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--yellow)' : 'var(--red)';
+            const srcIcon = item.source === 'repo' ? '📁' : '📄';
+            const badges = [
+                item.critical > 0 ? `<span class="badge critical">⚠ ${item.critical}</span>` : '',
+                item.warnings > 0 ? `<span class="badge warning">! ${item.warnings}</span>` : '',
+                item.info > 0 ? `<span class="badge info">i ${item.info}</span>` : '',
+            ].join('');
+            const filesLabel = `${item.fileCount} plik${item.fileCount === 1 ? '' : item.fileCount < 5 ? 'i' : 'ów'}`;
+
+            return `
+            <div class="history-entry" id="hentry-${item.reviewId}">
+                <div class="history-item" onclick="toggleHistoryItem('${item.reviewId}')">
+                    <div class="history-item-left">
+                        <span class="history-source">${srcIcon}</span>
+                        <div class="history-meta">
+                            <div class="history-label">${escapeHtml(item.label || item.reviewId)}</div>
+                            <div class="history-date">${date} &middot; ${filesLabel}</div>
+                        </div>
+                    </div>
+                    <div class="history-item-right">
+                        <div class="history-badges">${badges}</div>
+                        <div class="history-score" style="color:${sc}">${score}/100</div>
+                        <span class="history-chevron" id="hchev-${item.reviewId}">▶</span>
+                    </div>
+                </div>
+                <div class="history-detail" id="hdetail-${item.reviewId}" style="display:none">
+                    <div class="history-detail-loading">Ładowanie wyników...</div>
+                </div>
+            </div>`;
+        }).join('');
+    } catch {
+        container.innerHTML = `<div class="history-empty" style="color:var(--red)">⚠ Błąd ładowania historii.</div>`;
+    }
+}
+
+async function toggleHistoryItem(id) {
+    const detail = document.getElementById(`hdetail-${id}`);
+    const chev = document.getElementById(`hchev-${id}`);
+    const open = detail.style.display !== 'none';
+
+    if (open) {
+        detail.style.display = 'none';
+        chev.textContent = '▶';
+        return;
+    }
+
+    detail.style.display = '';
+    chev.textContent = '▼';
+
+    // Załaduj tylko raz
+    if (detail.dataset.loaded) return;
+    detail.dataset.loaded = '1';
+
+    try {
+        const res = await fetch(`${API}/history/${id}`);
+        const data = await res.json();
+
+        const dto = {
+            reviewId: data.reviewId,
+            summary: {
+                overallScore: data.summary.overallScore,
+                critical: data.summary.critical,
+                warnings: data.summary.warnings,
+                info: data.summary.info,
+                generalFeedback: data.summary.generalFeedback
+            },
+            files: (data.files || []).map(f => ({
+                filePath: f.filePath,
+                language: f.language,
+                score: f.score,
+                issues: (f.issues || []).map(i => ({
+                    severity: i.severity,
+                    category: i.category,
+                    title: i.title,
+                    description: i.description,
+                    suggestion: i.suggestion,
+                    line: i.line,
+                    codeBefore: i.codeBefore,
+                    codeAfter: i.codeAfter
+                }))
+            }))
+        };
+
+        // Wyrenderuj wyniki bezpośrednio w panelu historii
+        detail.innerHTML = '';
+        renderResultsInto(dto, detail);
+    } catch {
+        detail.innerHTML = `<div class="history-empty" style="color:var(--red)">⚠ Nie udało się załadować analizy.</div>`;
+    }
+}
+
+function closeHistoryDetail() { }  // zachowane dla kompatybilności z HTML

@@ -15,159 +15,158 @@
                 <div class="logo-icon">⚡</div>
                 <h1>Code<span>Review</span> AI</h1>
             </div>
-            <div class="ollama-status">
-                <div class="status-dot" id="ollamaDot"></div>
-                <span id="ollamaStatusText">Sprawdzanie Ollama...</span>
+            <div class="header-right">
+                <div class="ollama-status">
+                    <div class="status-dot" id="ollamaDot"></div>
+                    <span id="ollamaStatusText">Sprawdzanie Ollama...</span>
+                </div>
             </div>
         </header>
 
-        <div class="main">
-            <!-- Left: Form -->
-            <div>
-                <div class="tabs">
-                    <div class="tab active" id="tabSnippet" onclick="switchTab('snippet')">✏️ Snippet</div>
-                    <div class="tab" id="tabRepo" onclick="switchTab('repo')">📁 Repository</div>
-                </div>
+        <!-- Nav tabs -->
+        <nav class="nav-tabs">
+            <button class="nav-tab active" onclick="showPage('analyze')" id="navAnalyze">⚡ Analiza</button>
+            <button class="nav-tab" onclick="showPage('history')" id="navHistory">🕓 Historia</button>
+        </nav>
 
-                <!-- SNIPPET TAB -->
-                <div class="tab-content active" id="contentSnippet">
-                    <div class="panel">
-                        <div class="panel-header">
-                            <div class="dot"></div>
-                            Wklej kod lub dodaj pliki
-                        </div>
-                        <div class="form">
-                            <div class="lang-row">
-                                <div>
-                                    <label>Język</label>
-                                    <select id="snippetLang">
-                                        <option value="C#">C#</option>
-                                        <option value="TypeScript">TypeScript</option>
-                                        <option value="JavaScript">JavaScript</option>
-                                        <option value="Python">Python</option>
-                                        <option value="Java">Java</option>
-                                        <option value="Go">Go</option>
-                                        <option value="Rust">Rust</option>
-                                        <option value="PHP">PHP</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label>Nazwa pliku</label>
-                                    <input type="text" id="snippetFileName" placeholder="MyService.cs" value="snippet.cs" />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label>Kod</label>
-                                <div class="code-editor-wrap">
-                                    <textarea class="code-input" id="snippetCode"
-                                              placeholder="Wklej tutaj kod do przeglądu..."
-                                              oninput="updateLineCount()"></textarea>
-                                    <span class="line-count" id="lineCount">0 linii</span>
-                                </div>
-                            </div>
-
-                            <!-- File upload -->
-                            <div>
-                                <label>Dodaj pliki</label>
-                                <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
-                                    <input type="file" id="fileInput" multiple accept=".cs,.ts,.js,.py,.java,.go,.rs,.php,.txt" style="display:none" />
-                                    <span class="upload-icon">📂</span>
-                                    <span class="upload-text">Kliknij aby wybrać pliki lub przeciągnij tutaj</span>
-                                    <span class="upload-hint">.cs .ts .js .py .java .go .rs .php</span>
-                                </div>
-                                <div class="file-list" id="fileList"></div>
-                            </div>
-
-                            <div>
-                                <label>Model Ollama</label>
-                                <div class="model-select-wrap">
-                                    <select id="snippetModel">
-                                        <option value="deepseek-coder-v2">deepseek-coder-v2 (zalecany)</option>
-                                    </select>
-                                    <span class="model-badge">LOCAL</span>
-                                </div>
-                            </div>
-
-                            <div id="snippetErrorBox" class="error-box"></div>
-
-                            <button class="btn" id="snippetBtn" onclick="startSnippetReview()">
-                                ⚡ Analizuj kod
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- REPO TAB -->
-                <div class="tab-content" id="contentRepo">
-                    <div class="panel">
-                        <div class="panel-header">
-                            <div class="dot"></div>
-                            Konfiguracja Review
-                        </div>
-                        <div class="form">
-                            <div>
-                                <label>Ścieżka do repozytorium</label>
-                                <input type="text" id="repoPath" placeholder="C:\Projects\MyApp lub /home/user/myapp" />
-                            </div>
-                            <div>
-                                <label>Model Ollama</label>
-                                <div class="model-select-wrap">
-                                    <select id="modelSelect">
-                                        <option value="deepseek-coder-v2">deepseek-coder-v2 (zalecany)</option>
-                                    </select>
-                                    <span class="model-badge">LOCAL</span>
-                                </div>
-                            </div>
-                            <div>
-                                <label>Zakres analizy</label>
-                                <div class="checkbox-group" id="scopeChecks">
-                                    <label class="checkbox-item active" data-scope="bugs">
-                                        <input type="checkbox" checked />
-                                        <div class="check-icon">✓</div>
-                                        🐛 Bugi
-                                    </label>
-                                    <label class="checkbox-item active" data-scope="security">
-                                        <input type="checkbox" checked />
-                                        <div class="check-icon">✓</div>
-                                        🔒 Security
-                                    </label>
-                                    <label class="checkbox-item active" data-scope="bestpractice">
-                                        <input type="checkbox" checked />
-                                        <div class="check-icon">✓</div>
-                                        ✨ Best Practices
-                                    </label>
-                                    <label class="checkbox-item active" data-scope="refactor">
-                                        <input type="checkbox" checked />
-                                        <div class="check-icon">✓</div>
-                                        🔧 Refactor
-                                    </label>
-                                </div>
-                            </div>
-                            <div id="errorBox" class="error-box"></div>
-                            <button class="btn" id="reviewBtn" onclick="startReview()">⚡ Uruchom Review</button>
-                            <button class="btn-secondary" onclick="checkRepo()">🔍 Podgląd plików do analizy</button>
-                        </div>
+        <!-- PAGE: Analiza -->
+        <div id="pageAnalyze">
+            <div class="main">
+                <!-- Left: Form -->
+                <div>
+                    <div class="tabs">
+                        <div class="tab active" id="tabSnippet" onclick="switchTab('snippet')">✏️ Snippet</div>
+                        <div class="tab" id="tabRepo" onclick="switchTab('repo')">📁 Repository</div>
                     </div>
 
-                    <div id="repoPreview" style="display:none; margin-top:16px;">
+                    <!-- SNIPPET TAB -->
+                    <div class="tab-content active" id="contentSnippet">
                         <div class="panel">
-                            <div class="panel-header"><div class="dot"></div>Info o repozytorium</div>
-                            <div style="padding:14px 18px; font-size:12px; display:flex; flex-direction:column; gap:8px;" id="repoInfoContent"></div>
+                            <div class="panel-header"><div class="dot"></div>Wklej kod lub dodaj pliki</div>
+                            <div class="form">
+                                <div class="lang-row">
+                                    <div>
+                                        <label>Język</label>
+                                        <select id="snippetLang">
+                                            <option value="C#">C#</option>
+                                            <option value="TypeScript">TypeScript</option>
+                                            <option value="JavaScript">JavaScript</option>
+                                            <option value="Python">Python</option>
+                                            <option value="Java">Java</option>
+                                            <option value="Go">Go</option>
+                                            <option value="Rust">Rust</option>
+                                            <option value="PHP">PHP</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label>Nazwa pliku</label>
+                                        <input type="text" id="snippetFileName" placeholder="MyService.cs" value="snippet.cs" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label>Kod</label>
+                                    <div class="code-editor-wrap">
+                                        <textarea class="code-input" id="snippetCode"
+                                                  placeholder="Wklej tutaj kod do przeglądu..."
+                                                  oninput="updateLineCount()"></textarea>
+                                        <span class="line-count" id="lineCount">0 linii</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label>Dodaj pliki</label>
+                                    <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+                                        <input type="file" id="fileInput" multiple accept=".cs,.ts,.js,.py,.java,.go,.rs,.php,.txt" style="display:none" />
+                                        <span class="upload-icon">📂</span>
+                                        <span class="upload-text">Kliknij aby wybrać pliki</span>
+                                        <span class="upload-hint">.cs .ts .js .py .java .go .rs .php</span>
+                                    </div>
+                                    <div class="file-list" id="fileList"></div>
+                                </div>
+                                <div>
+                                    <label>Model Ollama</label>
+                                    <div class="model-select-wrap">
+                                        <select id="snippetModel"><option value="deepseek-coder-v2">deepseek-coder-v2 (zalecany)</option></select>
+                                        <span class="model-badge">LOCAL</span>
+                                    </div>
+                                </div>
+                                <div id="snippetErrorBox" class="error-box"></div>
+                                <button class="btn" id="snippetBtn" onclick="startSnippetReview()">⚡ Analizuj kod</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- REPO TAB -->
+                    <div class="tab-content" id="contentRepo">
+                        <div class="panel">
+                            <div class="panel-header"><div class="dot"></div>Konfiguracja Review</div>
+                            <div class="form">
+                                <div>
+                                    <label>Ścieżka do repozytorium</label>
+                                    <input type="text" id="repoPath" placeholder="C:\Projects\MyApp" />
+                                </div>
+                                <div>
+                                    <label>Model Ollama</label>
+                                    <div class="model-select-wrap">
+                                        <select id="modelSelect"><option value="deepseek-coder-v2">deepseek-coder-v2 (zalecany)</option></select>
+                                        <span class="model-badge">LOCAL</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label>Zakres analizy</label>
+                                    <div class="checkbox-group" id="scopeChecks">
+                                        <label class="checkbox-item active" data-scope="bugs"><input type="checkbox" checked /><div class="check-icon">✓</div>🐛 Bugi</label>
+                                        <label class="checkbox-item active" data-scope="security"><input type="checkbox" checked /><div class="check-icon">✓</div>🔒 Security</label>
+                                        <label class="checkbox-item active" data-scope="bestpractice"><input type="checkbox" checked /><div class="check-icon">✓</div>✨ Best Practices</label>
+                                        <label class="checkbox-item active" data-scope="refactor"><input type="checkbox" checked /><div class="check-icon">✓</div>🔧 Refactor</label>
+                                    </div>
+                                </div>
+                                <div id="errorBox" class="error-box"></div>
+                                <button class="btn" id="reviewBtn" onclick="startReview()">⚡ Uruchom Review</button>
+                                <button class="btn-secondary" onclick="checkRepo()">🔍 Podgląd plików</button>
+                            </div>
+                        </div>
+                        <div id="repoPreview" style="display:none; margin-top:16px;">
+                            <div class="panel">
+                                <div class="panel-header"><div class="dot"></div>Info o repozytorium</div>
+                                <div style="padding:14px 18px;font-size:12px;display:flex;flex-direction:column;gap:8px;" id="repoInfoContent"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Right: Results -->
+                <div id="resultsArea">
+                    <div class="panel">
+                        <div class="panel-header"><div class="dot"></div>Wyniki analizy</div>
+                        <div class="empty-state">
+                            <div class="empty-icon">🔬</div>
+                            <p>Wklej kod, dodaj pliki lub podaj ścieżkę do repo i uruchom analizę.</p>
                         </div>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Right: Results -->
-            <div class="results-area" id="resultsArea">
-                <div class="panel">
-                    <div class="panel-header"><div class="dot"></div>Wyniki analizy</div>
-                    <div class="empty-state">
-                        <div class="empty-icon">🔬</div>
-                        <p>Wklej kod, dodaj pliki lub podaj ścieżkę do repo i uruchom analizę.</p>
-                    </div>
+        <!-- PAGE: Historia -->
+        <div id="pageHistory" style="display:none">
+            <div class="history-page">
+                <div class="history-header">
+                    <div class="history-title">Historia reviewów</div>
+                    <button class="btn-secondary" style="width:auto;padding:6px 14px" onclick="loadHistory()">↺ Odśwież</button>
                 </div>
+                <div id="historyList"><div class="empty-state"><div class="empty-icon">🕓</div><p>Brak historii. Uruchom pierwszą analizę.</p></div></div>
+            </div>
+
+            <!-- Historia: podgląd wybranego review -->
+            <div id="historyDetail" style="display:none; margin-top:20px;">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                    <button class="btn-secondary" style="width:auto;padding:6px 14px" onclick="closeHistoryDetail()">← Wróć</button>
+                    <span style="font-size:13px;color:var(--text2)" id="historyDetailTitle"></span>
+                    <button class="btn-secondary" style="width:auto;padding:6px 14px;margin-left:auto" onclick="exportHtml()">⬇ Eksport HTML</button>
+                    <button class="btn-secondary" style="width:auto;padding:6px 14px" onclick="exportPdf()">⬇ Eksport PDF</button>
+                </div>
+                <div id="historyDetailResults"></div>
             </div>
         </div>
     </div>

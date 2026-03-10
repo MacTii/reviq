@@ -76,13 +76,45 @@ public class RunReviewHandler(
 
         var result = new ReviewResult
         {
-            RepoPath = "",
-            Branch = "",
-            CommitHash = "",
+            Label = request.FileName,
+            Source = "snippet",
             Files = new List<FileReview> { fileReview },
             Summary = BuildSummary(new List<FileReview> { fileReview })
         };
 
+        await reviewRepository.SaveAsync(result);
+        return ReviewResultDto.FromDomain(result);
+    }
+
+    /// <summary>Analizuje wiele plików jako jedną sesję i zapisuje do historii.</summary>
+    public async Task<ReviewResultDto> HandleBatchAsync(List<CodeReviewRequestDto> requests, string sessionLabel)
+    {
+        var fileReviews = new List<FileReview>();
+
+        foreach (var req in requests)
+        {
+            logger.LogInformation("Reviewing {FileName}...", req.FileName);
+            try
+            {
+                var rawJson = await aiProvider.ReviewCodeAsync(req.Code, req.Language, req.FileName);
+                fileReviews.Add(ParseAIResponse(rawJson, req.FileName, req.Language));
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to review {FileName}", req.FileName);
+                fileReviews.Add(BuildFallbackReview(req.FileName, req.Language, ex.Message));
+            }
+        }
+
+        var result = new ReviewResult
+        {
+            Label = sessionLabel,
+            Source = "snippet",
+            Files = fileReviews,
+            Summary = BuildSummary(fileReviews)
+        };
+
+        await reviewRepository.SaveAsync(result);
         return ReviewResultDto.FromDomain(result);
     }
 
@@ -95,7 +127,6 @@ public class RunReviewHandler(
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
-            var score = root.TryGetProperty("score", out var s) ? s.GetInt32() : 70;
             var issues = new List<ReviewIssue>();
 
             if (root.TryGetProperty("issues", out var issuesProp))
@@ -124,7 +155,7 @@ public class RunReviewHandler(
             {
                 FilePath = filePath,
                 Language = language,
-                Score = Math.Clamp(score, 0, 100),
+                Score = CalculateFileScore(issues),
                 Issues = issues
             };
         }
@@ -132,6 +163,18 @@ public class RunReviewHandler(
         {
             return BuildFallbackReview(filePath, language, "Nie udało się sparsować odpowiedzi AI.");
         }
+    }
+
+    private static int CalculateFileScore(List<ReviewIssue> issues)
+    {
+        var penalties = new Dictionary<IssueSeverity, int>
+        {
+            [IssueSeverity.Critical] = 20,
+            [IssueSeverity.Warning] = 8,
+            [IssueSeverity.Info] = 2
+        };
+        var penalty = issues.Sum(i => penalties.TryGetValue(i.Severity, out var p) ? p : 0);
+        return Math.Max(0, 100 - penalty);
     }
 
     private static ReviewSummary BuildSummary(List<FileReview> files)
@@ -147,7 +190,7 @@ public class RunReviewHandler(
             Critical = critical,
             Warnings = warnings,
             Info = info,
-            OverallScore = files.Count > 0 ? (int)files.Average(f => f.Score) : 0,
+            OverallScore = CalculateOverallScore(files),
             GeneralFeedback = critical switch
             {
                 > 5 => $"Kod wymaga pilnej uwagi — znaleziono {critical} krytycznych problemów.",
@@ -174,6 +217,23 @@ public class RunReviewHandler(
             }
         }
     };
+
+    private static int CalculateOverallScore(List<FileReview> files)
+    {
+        if (files.Count == 0) return 0;
+        var penalties = new Dictionary<IssueSeverity, int>
+        {
+            [IssueSeverity.Critical] = 20,
+            [IssueSeverity.Warning] = 8,
+            [IssueSeverity.Info] = 2
+        };
+        var total = files.Sum(f =>
+        {
+            var penalty = f.Issues.Sum(i => penalties.TryGetValue(i.Severity, out var p) ? p : 0);
+            return Math.Max(0, 100 - penalty);
+        });
+        return (int)Math.Round((double)total / files.Count);
+    }
 
     private static T ParseEnum<T>(JsonElement el, string prop) where T : struct, Enum =>
         el.TryGetProperty(prop, out var v) && Enum.TryParse<T>(v.GetString(), true, out var r) ? r : default;
