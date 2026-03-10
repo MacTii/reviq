@@ -1,4 +1,4 @@
-﻿const API = 'http://localhost:5000/api';
+﻿const API = '/api';
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 function switchTab(tab) {
@@ -234,14 +234,147 @@ async function startReview() {
 
 // ── Render results ────────────────────────────────────────────────────────────
 let _lastResults = null;
+const _ignoredIssues = new Set(); // "fileIdx-issueIdx"
+
+// ── Active filters ────────────────────────────────────────────────────────────
+const _filters = { severity: new Set(), category: new Set() };
+
+function toggleFilter(type, value, el) {
+    const set = _filters[type];
+    set.has(value) ? set.delete(value) : set.add(value);
+    el.classList.toggle('active', set.has(value));
+    applyFilters();
+}
+
+function clearFilters() {
+    _filters.severity.clear();
+    _filters.category.clear();
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    applyFilters();
+}
+
+function isIssueVisible(issue, fileIdx, issueIdx) {
+    // Ignorowane są widoczne (wyszarzone) — chyba że dodatkowo filtr je ukrywa
+    if (_filters.severity.size > 0 && !_filters.severity.has(issue.severity)) return false;
+    if (_filters.category.size > 0 && !_filters.category.has(issue.category)) return false;
+    return true;
+}
+
+function isIssueCounted(issue, fileIdx, issueIdx) {
+    // Do licznika ukrytych: ignorowane + przefiltrowane
+    if (_ignoredIssues.has(`${fileIdx}-${issueIdx}`)) return false;
+    return isIssueVisible(issue, fileIdx, issueIdx);
+}
+
+function applyFilters() {
+    if (!_lastResults) return;
+    _lastResults.files.forEach((file, fIdx) => {
+        let anyActive = false;
+        file.issues.forEach((issue, iIdx) => {
+            const el = document.getElementById(`issue-${fIdx}-${iIdx}`);
+            if (!el) return;
+            const visible = isIssueVisible(issue, fIdx, iIdx);
+            el.style.display = visible ? '' : 'none';
+            if (visible && !_ignoredIssues.has(`${fIdx}-${iIdx}`)) anyActive = true;
+        });
+        const empty = document.getElementById(`empty-${fIdx}`);
+        if (empty) empty.style.display = anyActive ? 'none' : '';
+    });
+    updateFilterCount();
+}
+
+function updateFilterCount() {
+    if (!_lastResults) return;
+    const allIssues = _lastResults.files.flatMap((f, fIdx) =>
+        f.issues.map((issue, iIdx) => ({ issue, fIdx, iIdx })));
+    const total = allIssues.length;
+    const visible = allIssues.filter(({ issue, fIdx, iIdx }) => isIssueCounted(issue, fIdx, iIdx)).length;
+    const hidden = total - visible;
+    const countEl = document.getElementById('filter-count');
+    if (countEl) countEl.textContent = hidden > 0 ? `(ukryto ${hidden} z ${total})` : '';
+}
+
+function ignoreIssue(fileIdx, issueIdx) {
+    const key = `${fileIdx}-${issueIdx}`;
+    const el = document.getElementById(`issue-${fileIdx}-${issueIdx}`);
+    const btn = el?.querySelector('.ignore-btn');
+
+    if (_ignoredIssues.has(key)) {
+        _ignoredIssues.delete(key);
+        if (el) el.classList.remove('ignored');
+        if (btn) btn.textContent = '✕ ignoruj';
+    } else {
+        _ignoredIssues.add(key);
+        if (el) el.classList.add('ignored');
+        if (btn) btn.textContent = '↩ przywróć';
+    }
+
+    applyFilters();
+    recalculateSummary();
+}
+
+function recalculateSummary() {
+    if (!_lastResults) return;
+
+    let critical = 0, warnings = 0, info = 0, totalScore = 0;
+    const penalties = { Critical: 20, Warning: 8, Info: 2 };
+
+    _lastResults.files.forEach((file, fIdx) => {
+        const active = file.issues.filter((_, iIdx) => !_ignoredIssues.has(`${fIdx}-${iIdx}`));
+
+        critical += active.filter(i => i.severity === 'Critical').length;
+        warnings += active.filter(i => i.severity === 'Warning').length;
+        info += active.filter(i => i.severity === 'Info').length;
+
+        // Score = 100 minus kary za aktywne issues
+        const penalty = active.reduce((s, i) => s + (penalties[i.severity] ?? 0), 0);
+        const fileScore = Math.max(0, 100 - penalty);
+        totalScore += fileScore;
+
+        // Zaktualizuj score per plik
+        const scoreEl = document.querySelector(`#card${fIdx} .file-score`);
+        if (scoreEl) {
+            const fc = fileScore >= 80 ? 'var(--green)' : fileScore >= 60 ? 'var(--yellow)' : 'var(--red)';
+            scoreEl.textContent = `${fileScore}/100`;
+            scoreEl.style.color = fc;
+        }
+    });
+
+    const overallScore = _lastResults.files.length > 0
+        ? Math.round(totalScore / _lastResults.files.length) : 0;
+    const scoreColor = overallScore >= 80 ? 'var(--green)' : overallScore >= 60 ? 'var(--yellow)' : 'var(--red)';
+
+    const stats = document.querySelectorAll('.stat .stat-value');
+    if (stats[0]) stats[0].textContent = critical;
+    if (stats[1]) stats[1].textContent = warnings;
+    if (stats[2]) stats[2].textContent = info;
+
+    const ringText = document.querySelector('.score-ring-text');
+    const ringCircle = document.querySelector('.score-ring circle:last-child');
+    if (ringText) { ringText.textContent = overallScore; ringText.style.color = scoreColor; }
+    if (ringCircle) {
+        const circ = Math.PI * 2 * 26;
+        ringCircle.setAttribute('stroke-dashoffset', circ * (1 - overallScore / 100));
+        ringCircle.setAttribute('stroke', scoreColor);
+    }
+}
+
+function restoreIgnored() {
+    _ignoredIssues.clear();
+    applyFilters();
+}
 
 function renderResults(data) {
     _lastResults = data;
+    _ignoredIssues.clear();
     const area = document.getElementById('resultsArea');
     const score = data.summary.overallScore;
     const scoreColor = score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--yellow)' : 'var(--red)';
     const circ = Math.PI * 2 * 26;
     const offset = circ * (1 - score / 100);
+
+    // Zbierz unikalne kategorie z wyników
+    const categories = [...new Set(data.files.flatMap(f => f.issues.map(i => i.category)))];
 
     let html = `
         <div class="summary-bar">
@@ -263,6 +396,27 @@ function renderResults(data) {
 
     if (data.summary.generalFeedback)
         html += `<div class="general-feedback">💬 ${data.summary.generalFeedback}</div>`;
+
+    // Pasek filtrów
+    html += `
+        <div class="filter-bar">
+            <div class="filter-group">
+                <span class="filter-group-label">Ważność:</span>
+                <button class="filter-chip critical" onclick="toggleFilter('severity','Critical',this)">⚠ Krytyczne</button>
+                <button class="filter-chip warning"  onclick="toggleFilter('severity','Warning',this)">! Ostrzeżenia</button>
+                <button class="filter-chip info"     onclick="toggleFilter('severity','Info',this)">i Info</button>
+            </div>
+            ${categories.length > 0 ? `
+            <div class="filter-group">
+                <span class="filter-group-label">Kategoria:</span>
+                ${categories.map(c => `<button class="filter-chip cat" onclick="toggleFilter('category','${c}',this)">${escapeHtml(c)}</button>`).join('')}
+            </div>` : ''}
+            <div class="filter-actions">
+                <span class="filter-count" id="filter-count"></span>
+                <button class="filter-clear" onclick="clearFilters()">Wyczyść filtry</button>
+                <button class="filter-clear" onclick="restoreIgnored()" title="Przywróć zignorowane">↩ Przywróć</button>
+            </div>
+        </div>`;
 
     data.files.forEach((file, idx) => {
         const crit = file.issues.filter(i => i.severity === 'Critical').length;
@@ -289,6 +443,9 @@ function renderResults(data) {
                 </div>
                 <div class="file-issues">
                     ${file.issues.map((issue, iIdx) => renderIssue(issue, idx, iIdx)).join('')}
+                    <div id="empty-${idx}" class="no-issues-msg" style="display:none">
+                        ✓ Wszystkie issues ukryte lub przefiltrowane.
+                    </div>
                     ${file.issues.length === 0 ? `<div style="padding:14px 16px;font-size:12px;color:var(--green)">✓ Brak problemów.</div>` : ''}
                 </div>
             </div>`;
@@ -304,6 +461,9 @@ function renderResults(data) {
         <button class="export-btn" onclick="exportHTML()">⬇ HTML</button>
         <button class="export-btn" onclick="exportPDF()">🖨 PDF</button>`;
     area.appendChild(exportBar);
+
+    // Przelicz score od razu żeby był spójny (100 - kary)
+    recalculateSummary();
 }
 
 function stripCodeFences(str) {
@@ -312,12 +472,12 @@ function stripCodeFences(str) {
 }
 
 function renderIssue(issue, cardIdx, issueIdx) {
-    const sevClass = issue.severity; // Critical | Warning | Info
+    const sevClass = issue.severity;
     const diffId = `diff-${cardIdx}-${issueIdx}`;
     const hasDiff = issue.codeBefore || issue.codeAfter;
 
     return `
-        <div class="issue-item">
+        <div class="issue-item" id="issue-${cardIdx}-${issueIdx}">
             <div class="issue-severity"><div class="sev-bar ${sevClass}"></div></div>
             <div class="issue-content">
                 <div class="issue-title-row">
@@ -325,6 +485,7 @@ function renderIssue(issue, cardIdx, issueIdx) {
                     <span class="issue-title">${escapeHtml(issue.title)}</span>
                     <span class="issue-cat">${escapeHtml(issue.category)}</span>
                     ${issue.line ? `<span class="issue-line">L${issue.line}</span>` : ''}
+                    <button class="ignore-btn" onclick="ignoreIssue(${cardIdx},${issueIdx})" title="Oznacz jako false positive">✕ ignoruj</button>
                 </div>
                 <div class="issue-desc">${escapeHtml(issue.description)}</div>
                 ${issue.suggestion ? `<div class="issue-suggestion">${escapeHtml(issue.suggestion)}</div>` : ''}
@@ -393,14 +554,22 @@ function showSnippetError(msg) { const b = document.getElementById('snippetError
 function clearSnippetError() { document.getElementById('snippetErrorBox').classList.remove('active'); }
 
 // ── Export ────────────────────────────────────────────────────────────────────
-function buildReportHTML(data, inline = false) {
+function buildReportHTML(data) {
+    // Użyj aktywnych (niezignorowanych) issues do raportu
+    const allActive = data.files.flatMap((f, fIdx) =>
+        f.issues.filter((_, iIdx) => !_ignoredIssues.has(`${fIdx}-${iIdx}`)));
+    const critical = allActive.filter(i => i.severity === 'Critical').length;
+    const warnings = allActive.filter(i => i.severity === 'Warning').length;
+    const info = allActive.filter(i => i.severity === 'Info').length;
     const score = data.summary.overallScore;
     const scoreColor = score >= 80 ? '#34d399' : score >= 60 ? '#fbbf24' : '#f87171';
     const now = new Date().toLocaleString('pl-PL');
+    const ignoredCount = _ignoredIssues.size;
 
-    const issuesHTML = data.files.map(file => {
+    const issuesHTML = data.files.map((file, fIdx) => {
+        const activeIssues = file.issues.filter((_, iIdx) => !_ignoredIssues.has(`${fIdx}-${iIdx}`));
         const fc = file.score >= 80 ? '#34d399' : file.score >= 60 ? '#fbbf24' : '#f87171';
-        const issueRows = file.issues.map(issue => {
+        const issueRows = activeIssues.map(issue => {
             const sevColor = { Critical: '#f87171', Warning: '#fbbf24', Info: '#4f8ef7' }[issue.severity] ?? '#8892a4';
             const sevLabel = { Critical: 'KRYTYCZNY', Warning: 'OSTRZEŻENIE', Info: 'INFO' }[issue.severity] ?? issue.severity;
             const diff = (issue.codeBefore || issue.codeAfter) ? `
@@ -431,8 +600,7 @@ function buildReportHTML(data, inline = false) {
                     </div>
                     <span style="font-family:sans-serif;font-size:14px;font-weight:800;color:${fc}">${file.score}/100</span>
                 </div>
-                ${issueRows || '<div style="padding:14px 16px;font-size:12px;color:#34d399">✓ Brak problemów.</div>'}
-            </div>`;
+                ${issueRows || '<div style="padding:14px 16px;font-size:12px;color:#34d399">✓ Brak problemów.</div>'}            </div>`;
     }).join('');
 
     return `<!DOCTYPE html>
@@ -468,21 +636,21 @@ function buildReportHTML(data, inline = false) {
     </div>
   </div>
 
-  <!-- Summary -->
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px">
     <div style="background:#10121a;border:1px solid #1e2435;border-radius:12px;padding:18px;text-align:center">
-      <div style="font-family:sans-serif;font-size:32px;font-weight:800;color:#f87171">${data.summary.critical}</div>
+      <div style="font-family:sans-serif;font-size:32px;font-weight:800;color:#f87171">${critical}</div>
       <div style="font-size:10px;color:#4a5568;text-transform:uppercase;letter-spacing:0.08em;margin-top:4px">Krytyczne</div>
     </div>
     <div style="background:#10121a;border:1px solid #1e2435;border-radius:12px;padding:18px;text-align:center">
-      <div style="font-family:sans-serif;font-size:32px;font-weight:800;color:#fbbf24">${data.summary.warnings}</div>
+      <div style="font-family:sans-serif;font-size:32px;font-weight:800;color:#fbbf24">${warnings}</div>
       <div style="font-size:10px;color:#4a5568;text-transform:uppercase;letter-spacing:0.08em;margin-top:4px">Ostrzeżenia</div>
     </div>
     <div style="background:#10121a;border:1px solid #1e2435;border-radius:12px;padding:18px;text-align:center">
-      <div style="font-family:sans-serif;font-size:32px;font-weight:800;color:#4f8ef7">${data.summary.info}</div>
+      <div style="font-family:sans-serif;font-size:32px;font-weight:800;color:#4f8ef7">${info}</div>
       <div style="font-size:10px;color:#4a5568;text-transform:uppercase;letter-spacing:0.08em;margin-top:4px">Informacje</div>
     </div>
   </div>
+  ${ignoredCount > 0 ? `<div style="font-size:11px;color:#4a5568;margin-bottom:16px;font-style:italic">* Pominięto ${ignoredCount} issue${ignoredCount > 1 ? 's' : ''} oznaczonych jako false positive.</div>` : ''}
 
   ${data.summary.generalFeedback ? `<div style="background:#10121a;border:1px solid #1e2435;border-left:3px solid #7c6af7;border-radius:0 12px 12px 0;padding:14px 18px;font-size:13px;color:#8892a4;line-height:1.7;margin-bottom:24px">💬 ${escapeHtml(data.summary.generalFeedback)}</div>` : ''}
 
