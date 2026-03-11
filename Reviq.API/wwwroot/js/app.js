@@ -104,8 +104,26 @@ function renderFileList() {
     list.innerHTML = uploadedFiles.map(f => `
         <div class="file-tag">
             <span class="file-tag-name">${escapeHtml(f.name)}</span>
+            <span class="file-tag-preview" onclick="previewFile('${escapeHtml(f.name)}')" title="Podgląd">👁</span>
             <span class="file-tag-remove" onclick="removeFile('${escapeHtml(f.name)}')" title="Usuń">✕</span>
         </div>`).join('');
+}
+
+function previewFile(name) {
+    const file = uploadedFiles.find(f => f.name === name);
+    if (!file) return;
+
+    const lines = file.content.split('\n').length;
+    document.getElementById('previewModalTitle').textContent = file.name;
+    document.getElementById('previewModalMeta').textContent = `${lines} linii`;
+    document.getElementById('previewModalCode').textContent = file.content;
+    document.getElementById('previewModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+
+function closePreviewModal() {
+    document.getElementById('previewModal').style.display = 'none';
+    document.body.style.overflow = '';
 }
 
 // ── Snippet review ────────────────────────────────────────────────────────────

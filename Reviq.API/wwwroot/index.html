@@ -179,5 +179,19 @@
     </div>
 
     <script src="/js/app.js"></script>
+
+    <!-- Modal: podgląd pliku -->
+    <div id="previewModal" style="display:none" class="modal-overlay" onclick="if(event.target===this)closePreviewModal()">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <span class="modal-title" id="previewModalTitle"></span>
+                    <span class="modal-meta" id="previewModalMeta"></span>
+                </div>
+                <button class="modal-close" onclick="closePreviewModal()">✕</button>
+            </div>
+            <pre class="modal-code" id="previewModalCode"></pre>
+        </div>
+    </div>
 </body>
 </html>
