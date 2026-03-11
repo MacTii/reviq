@@ -1436,3 +1436,47 @@ textarea.code-input {
     flex: 1;
     background: var(--bg);
 }
+
+/* ── File card preview button ─────────────────────────────────────────────── */
+.file-preview-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    opacity: 0.4;
+    padding: 0 4px;
+    transition: opacity 0.15s;
+    line-height: 1;
+}
+
+    .file-preview-btn:hover {
+        opacity: 1;
+    }
+
+/* ── Path input with browse button ───────────────────────────────────────── */
+.path-input-wrap {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+    .path-input-wrap input {
+        flex: 1;
+    }
+
+.path-browse-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 0 12px;
+    height: 38px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: border-color 0.2s, background 0.2s;
+    flex-shrink: 0;
+}
+
+    .path-browse-btn:hover {
+        border-color: var(--accent);
+        background: rgba(79,142,247,0.06);
+    }

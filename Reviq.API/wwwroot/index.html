@@ -102,7 +102,10 @@
                             <div class="form">
                                 <div>
                                     <label>Ścieżka do repozytorium</label>
-                                    <input type="text" id="repoPath" placeholder="C:\Projects\MyApp" />
+                                    <div class="path-input-wrap">
+                                        <input type="text" id="repoPath" placeholder="C:\Projects\MyApp" />
+                                        <button class="path-browse-btn" onclick="browseFolder()" title="Wybierz folder">📁</button>
+                                    </div>
                                 </div>
                                 <div>
                                     <label>Model Ollama</label>
@@ -114,10 +117,10 @@
                                 <div>
                                     <label>Zakres analizy</label>
                                     <div class="checkbox-group" id="scopeChecks">
-                                        <label class="checkbox-item active" data-scope="bugs"><input type="checkbox" checked /><div class="check-icon">✓</div>🐛 Bugi</label>
-                                        <label class="checkbox-item active" data-scope="security"><input type="checkbox" checked /><div class="check-icon">✓</div>🔒 Security</label>
-                                        <label class="checkbox-item active" data-scope="bestpractice"><input type="checkbox" checked /><div class="check-icon">✓</div>✨ Best Practices</label>
-                                        <label class="checkbox-item active" data-scope="refactor"><input type="checkbox" checked /><div class="check-icon">✓</div>🔧 Refactor</label>
+                                        <div class="checkbox-item active" data-scope="bugs"><div class="check-icon">✓</div>🐛 Bugi</div>
+                                        <div class="checkbox-item active" data-scope="security"><div class="check-icon">✓</div>🔒 Security</div>
+                                        <div class="checkbox-item active" data-scope="bestpractice"><div class="check-icon">✓</div>✨ Best Practices</div>
+                                        <div class="checkbox-item active" data-scope="refactor"><div class="check-icon">✓</div>🔧 Refactor</div>
                                     </div>
                                 </div>
                                 <div id="errorBox" class="error-box"></div>

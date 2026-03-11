@@ -48,11 +48,11 @@ async function checkOllama() {
 }
 
 // ── Checkbox toggle ───────────────────────────────────────────────────────────
-document.querySelectorAll('.checkbox-item').forEach(item => {
-    item.addEventListener('click', () => {
-        item.classList.toggle('active');
-        item.querySelector('.check-icon').textContent = item.classList.contains('active') ? '✓' : '';
-    });
+document.addEventListener('click', e => {
+    const item = e.target.closest('.checkbox-item');
+    if (!item) return;
+    item.classList.toggle('active');
+    item.querySelector('.check-icon').textContent = item.classList.contains('active') ? '✓' : '';
 });
 
 // ── Line counter ──────────────────────────────────────────────────────────────
@@ -112,11 +112,14 @@ function renderFileList() {
 function previewFile(name) {
     const file = uploadedFiles.find(f => f.name === name);
     if (!file) return;
+    previewCode(file.name, file.content);
+}
 
-    const lines = file.content.split('\n').length;
-    document.getElementById('previewModalTitle').textContent = file.name;
+function previewCode(name, code) {
+    const lines = code.split('\n').length;
+    document.getElementById('previewModalTitle').textContent = name;
     document.getElementById('previewModalMeta').textContent = `${lines} linii`;
-    document.getElementById('previewModalCode').textContent = file.content;
+    document.getElementById('previewModalCode').textContent = code;
     document.getElementById('previewModal').style.display = 'flex';
     document.body.style.overflow = 'hidden';
 }
@@ -199,13 +202,47 @@ function renderMultiResults(results) {
 }
 
 // ── Repo review ───────────────────────────────────────────────────────────────
+async function browseFolder() {
+    // showDirectoryPicker nie zwraca pełnej ścieżki — tylko nazwę folderu
+    // Używamy do podpowiedzi, pełną ścieżkę user wpisuje lub uzupełnia
+    if (!window.showDirectoryPicker) {
+        showError('Przeglądarka nie obsługuje wyboru folderu. Wpisz ścieżkę ręcznie.');
+        return;
+    }
+    try {
+        const dir = await window.showDirectoryPicker();
+        const input = document.getElementById('repoPath');
+        // Jeśli pole jest puste, wstaw nazwę jako podpowiedź
+        if (!input.value.trim()) {
+            input.value = dir.name;
+            input.focus();
+            input.select();
+        } else {
+            // Zastąp ostatni segment ścieżki wybraną nazwą
+            const parts = input.value.replace(/\\/g, '/').split('/');
+            parts[parts.length - 1] = dir.name;
+            input.value = parts.join('\\');
+        }
+    } catch (e) {
+        if (e.name !== 'AbortError') showError('Nie udało się otworzyć selektora folderu.');
+    }
+}
+
 async function checkRepo() {
     const path = document.getElementById('repoPath').value.trim();
     if (!path) return showError('Podaj ścieżkę do repozytorium.');
+
+    const preview = document.getElementById('repoPreview');
+
+    // Jeśli już otwarty dla tej samej ścieżki — zamknij
+    if (preview.style.display === 'block' && preview.dataset.path === path) {
+        preview.style.display = 'none';
+        return;
+    }
+
     try {
         const r = await fetch(`${API}/git/info?path=${encodeURIComponent(path)}`);
         const d = await r.json();
-        const preview = document.getElementById('repoPreview');
         const content = document.getElementById('repoInfoContent');
         if (!d.isValid) {
             content.innerHTML = `<span style="color:var(--red)">${d.error || 'Nieprawidłowe repozytorium'}</span>`;
@@ -222,6 +259,7 @@ async function checkRepo() {
                 ${d.changedFiles.map(f => `<div style="color:var(--text2);padding-left:8px">• ${f}</div>`).join('')}
                 ${d.changedFiles.length === 0 ? '<div style="color:var(--yellow)">Brak zmienionych plików.</div>' : ''}`;
         }
+        preview.dataset.path = path;
         preview.style.display = 'block';
     } catch {
         showError('Nie można połączyć z API.');
@@ -472,6 +510,7 @@ function _renderResults(data, area, isMain, prefix) {
                             ${warn > 0 ? `<span class="badge warning">! ${warn}</span>` : ''}
                             ${info > 0 ? `<span class="badge info">i ${info}</span>` : ''}
                         </div>
+                        ${file.originalCode ? `<button class="file-preview-btn" onclick="event.stopPropagation();previewCode('${escapeHtml(file.filePath)}',${JSON.stringify(file.originalCode)})" title="Podgląd kodu">👁</button>` : ''}
                         <span class="file-score" style="color:${fc}">${file.score}/100</span>
                         <span class="chevron">▼</span>
                     </div>
