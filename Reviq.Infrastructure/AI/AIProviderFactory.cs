@@ -76,5 +76,3 @@ public class AIProviderFactory : IAIProviderFactory
 
     private record ProviderMeta(ProviderName Name, ProviderType Type, RequiredConfig Required);
 }
-
-public enum RequiredConfig { None, ApiKey, BaseUrl }
