@@ -24,7 +24,7 @@ public class RunReviewHandler(
     {
         var req = command.Request;
 
-        var repoInfo = await gitProvider.GetRepoInfoAsync(req.RepoPath, req.CommitHash);
+        var repoInfo = await gitProvider.GetRepoInfoAsync(req.RepoPath, req.DiffScope, req.CommitHash);
         if (!repoInfo.IsValid)
             throw new InvalidOperationException(repoInfo.Error ?? "Invalid repository.");
 
@@ -42,7 +42,7 @@ public class RunReviewHandler(
 
             try
             {
-                var rawJson = await aiProvider.ReviewCodeAsync(code, language, filePath);
+                var rawJson = await aiProvider.ReviewCodeAsync(code, language, filePath, req.Categories.Count > 0 ? req.Categories : null);
                 var fileReview = ParseAIResponse(rawJson, filePath, language);
                 fileReviews.Add(fileReview);
             }

@@ -202,64 +202,87 @@ function renderMultiResults(results) {
 }
 
 // ── Repo review ───────────────────────────────────────────────────────────────
-async function browseFolder() {
-    // showDirectoryPicker nie zwraca pełnej ścieżki — tylko nazwę folderu
-    // Używamy do podpowiedzi, pełną ścieżkę user wpisuje lub uzupełnia
-    if (!window.showDirectoryPicker) {
-        showError('Przeglądarka nie obsługuje wyboru folderu. Wpisz ścieżkę ręcznie.');
-        return;
-    }
-    try {
-        const dir = await window.showDirectoryPicker();
-        const input = document.getElementById('repoPath');
-        // Jeśli pole jest puste, wstaw nazwę jako podpowiedź
-        if (!input.value.trim()) {
-            input.value = dir.name;
-            input.focus();
-            input.select();
-        } else {
-            // Zastąp ostatni segment ścieżki wybraną nazwą
-            const parts = input.value.replace(/\\/g, '/').split('/');
-            parts[parts.length - 1] = dir.name;
-            input.value = parts.join('\\');
-        }
-    } catch (e) {
-        if (e.name !== 'AbortError') showError('Nie udało się otworzyć selektora folderu.');
-    }
+// ── Path history ──────────────────────────────────────────────────────────────
+const _recentPaths = JSON.parse(sessionStorage.getItem('recentPaths') || '[]');
+
+function saveRecentPath(path) {
+    if (!path) return;
+    const idx = _recentPaths.indexOf(path);
+    if (idx >= 0) _recentPaths.splice(idx, 1);
+    _recentPaths.unshift(path);
+    if (_recentPaths.length > 8) _recentPaths.pop();
+    sessionStorage.setItem('recentPaths', JSON.stringify(_recentPaths));
+    updatePathDatalist();
 }
+
+function updatePathDatalist() {
+    const dl = document.getElementById('pathHistory');
+    if (!dl) return;
+    dl.innerHTML = _recentPaths.map(p => `<option value="${escapeHtml(p)}">`).join('');
+}
+
+function getSelectedCategories() {
+    const scopeMap = { bugs: 'Bug', security: 'Security', bestpractice: 'BestPractice', refactor: 'Refactor' };
+    return [...document.querySelectorAll('#scopeChecks .checkbox-item.active')]
+        .map(el => scopeMap[el.dataset.scope])
+        .filter(Boolean);
+}
+
+document.addEventListener('DOMContentLoaded', updatePathDatalist);
 
 async function checkRepo() {
     const path = document.getElementById('repoPath').value.trim();
     if (!path) return showError('Podaj ścieżkę do repozytorium.');
 
     const preview = document.getElementById('repoPreview');
+    const diffScope = parseInt(document.getElementById('diffScope')?.value ?? '0');
 
-    // Jeśli już otwarty dla tej samej ścieżki — zamknij
-    if (preview.style.display === 'block' && preview.dataset.path === path) {
+    // Toggle — ta sama ścieżka i ten sam zakres → zamknij
+    if (preview.style.display === 'block' && preview.dataset.path === path && parseInt(preview.dataset.scope ?? '-1') === diffScope) {
         preview.style.display = 'none';
         return;
     }
 
     try {
-        const r = await fetch(`${API}/git/info?path=${encodeURIComponent(path)}`);
+        const r = await fetch(`${API}/git/info?path=${encodeURIComponent(path)}&diffScope=${diffScope}`);
         const d = await r.json();
         const content = document.getElementById('repoInfoContent');
         if (!d.isValid) {
             content.innerHTML = `<span style="color:var(--red)">${d.error || 'Nieprawidłowe repozytorium'}</span>`;
         } else {
+            const scopeLabels = ['ostatni commit', 'od ostatniego pusha', 'niezacommitowane', 'wszystkie pliki'];
             content.innerHTML = `
                 <div style="display:flex;gap:8px;align-items:center">
-                    <span style="color:var(--text3)">Branch:</span><span style="color:var(--accent)">${d.branch}</span>
+                    <span style="color:var(--text3)">Branch:</span>
+                    <span style="color:var(--accent)">${escapeHtml(d.branch)}</span>
                 </div>
-                <div style="display:flex;gap:8px;align-items:center">
-                    <span style="color:var(--text3)">Commit:</span><span>${d.latestCommit}</span>
-                    <span style="color:var(--text3);font-size:11px">${d.commitMessage}</span>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                    <span style="color:var(--text3)">Commit:</span>
+                    <span style="font-family:var(--mono)">${escapeHtml(d.latestCommit)}</span>
+                    <span style="color:var(--text3);font-size:11px">${escapeHtml(d.commitMessage)}</span>
                 </div>
-                <div style="color:var(--text3);margin-top:4px">Pliki do analizy (${d.changedFiles.length}):</div>
-                ${d.changedFiles.map(f => `<div style="color:var(--text2);padding-left:8px">• ${f}</div>`).join('')}
-                ${d.changedFiles.length === 0 ? '<div style="color:var(--yellow)">Brak zmienionych plików.</div>' : ''}`;
+                <div style="color:var(--text3);margin-top:4px">
+                    Pliki do analizy — <span style="color:var(--accent2)">${scopeLabels[diffScope]}</span>
+                    <span style="color:var(--text)">(${d.changedFiles.length})</span>:
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px;max-height:260px;overflow-y:auto;padding-right:4px">
+                    ${d.changedFiles.map(f => {
+                const parts = f.replace(/\\/g, '/').split('/');
+                const file = parts.pop();
+                const dir = parts.join('/');
+                return `<div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 10px">
+                            <span style="color:var(--text3);font-size:10px;flex-shrink:0">•</span>
+                            <div style="min-width:0">
+                                <div style="font-family:var(--mono);font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(file)}</div>
+                                ${dir ? `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(dir)}</div>` : ''}
+                            </div>
+                        </div>`;
+            }).join('')}
+                    ${d.changedFiles.length === 0 ? '<div style="color:var(--yellow)">Brak plików w wybranym zakresie.</div>' : ''}
+                </div>`;
         }
         preview.dataset.path = path;
+        preview.dataset.scope = diffScope;
         preview.style.display = 'block';
     } catch {
         showError('Nie można połączyć z API.');
@@ -269,6 +292,7 @@ async function checkRepo() {
 async function startReview() {
     const path = document.getElementById('repoPath').value.trim();
     const model = document.getElementById('modelSelect').value;
+    const diffScope = parseInt(document.getElementById('diffScope')?.value ?? '0');
     if (!path) return showError('Podaj ścieżkę do repozytorium.');
     clearError();
 
@@ -281,10 +305,11 @@ async function startReview() {
         const r = await fetch(`${API}/review?model=${encodeURIComponent(model)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ repoPath: path, files: [], scope: 0 })
+            body: JSON.stringify({ repoPath: path, files: [], categories: getSelectedCategories(), diffScope })
         });
         const data = await r.json();
         if (!r.ok) { showError(data.error || 'Błąd podczas analizy.'); return; }
+        saveRecentPath(path);
         renderResults(data);
     } catch {
         showError('Nie można połączyć z API.');

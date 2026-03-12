@@ -19,10 +19,7 @@ public class OllamaProvider(HttpClient httpClient, ILogger<OllamaProvider> logge
             var response = await httpClient.GetAsync("/api/tags");
             return response.IsSuccessStatusCode;
         }
-        catch
-        {
-            return false;
-        }
+        catch { return false; }
     }
 
     public async Task<List<string>> GetAvailableModelsAsync()
@@ -41,18 +38,15 @@ public class OllamaProvider(HttpClient httpClient, ILogger<OllamaProvider> logge
                 .Where(n => !string.IsNullOrEmpty(n))
                 .ToList();
         }
-        catch
-        {
-            return new();
-        }
+        catch { return new(); }
     }
 
-    public async Task<string> ReviewCodeAsync(string code, string language, string filePath)
+    public async Task<string> ReviewCodeAsync(string code, string language, string filePath, IList<string>? categories = null)
     {
         var request = new
         {
             model = CurrentModel,
-            prompt = BuildPrompt(code, language, filePath),
+            prompt = BuildPrompt(code, language, filePath, categories),
             stream = false,
             options = new { temperature = 0.1f, num_predict = 6000 }
         };
@@ -61,7 +55,6 @@ public class OllamaProvider(HttpClient httpClient, ILogger<OllamaProvider> logge
         {
             var response = await httpClient.PostAsJsonAsync("/api/generate", request);
             response.EnsureSuccessStatusCode();
-
             var result = await response.Content.ReadFromJsonAsync<OllamaResponse>();
             return result?.Response ?? "";
         }
@@ -72,13 +65,20 @@ public class OllamaProvider(HttpClient httpClient, ILogger<OllamaProvider> logge
         }
     }
 
-    private static string BuildPrompt(string code, string language, string filePath)
+    private static string BuildPrompt(string code, string language, string filePath, IList<string>? categories = null)
     {
+        var allowed = (categories == null || categories.Count == 0)
+            ? new[] { "Bug", "Security", "BestPractice", "Refactor" }
+            : categories.ToArray();
+
+        var categoryList = string.Join(", ", allowed);
+
         var sb = new StringBuilder();
         sb.AppendLine($"You are an expert {language} code reviewer. Analyze the following code and return a JSON response ONLY — no markdown, no explanation outside JSON.");
         sb.AppendLine();
         sb.AppendLine($"File: {filePath}");
         sb.AppendLine($"Language: {language}");
+        sb.AppendLine($"Focus ONLY on these issue categories: {categoryList}. Do NOT report issues from other categories.");
         sb.AppendLine();
         sb.AppendLine("Code:");
         sb.AppendLine("```");
@@ -90,8 +90,8 @@ public class OllamaProvider(HttpClient httpClient, ILogger<OllamaProvider> logge
         sb.AppendLine("  \"score\": <0-100 integer>,");
         sb.AppendLine("  \"issues\": [");
         sb.AppendLine("    {");
-        sb.AppendLine("      \"severity\": \"<Critical|Warning|Info>\",");
-        sb.AppendLine("      \"category\": \"<Bug|Security|BestPractice|Refactor>\",");
+        sb.AppendLine($"      \"severity\": \"<Critical|Warning|Info>\",");
+        sb.AppendLine($"      \"category\": \"<{string.Join("|", allowed)}>\",");
         sb.AppendLine("      \"line\": <line number or null>,");
         sb.AppendLine("      \"title\": \"<short title>\",");
         sb.AppendLine("      \"description\": \"<detailed description>\",");
@@ -107,9 +107,8 @@ public class OllamaProvider(HttpClient httpClient, ILogger<OllamaProvider> logge
         sb.AppendLine("- codeBefore: extract ONLY the exact lines that have the problem, not the whole method");
         sb.AppendLine("- codeAfter: rewrite ONLY those same lines with the fix applied");
         sb.AppendLine("- Both must be short, focused, and clearly show the before/after difference");
-        sb.AppendLine("- If the fix requires a new method, show the old call site vs new call site");
         sb.AppendLine("severity: Critical=bugs/security holes, Warning=bad practices, Info=style/minor");
-        sb.AppendLine("category: Bug=logic errors, Security=injections/auth, BestPractice=SOLID/DRY, Refactor=smells/complexity");
+        sb.AppendLine($"category: only report from this list: {categoryList}");
         sb.AppendLine("Return valid JSON only. No markdown code blocks.");
         return sb.ToString();
     }

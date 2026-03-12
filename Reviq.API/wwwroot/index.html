@@ -102,10 +102,17 @@
                             <div class="form">
                                 <div>
                                     <label>Ścieżka do repozytorium</label>
-                                    <div class="path-input-wrap">
-                                        <input type="text" id="repoPath" placeholder="C:\Projects\MyApp" />
-                                        <button class="path-browse-btn" onclick="browseFolder()" title="Wybierz folder">📁</button>
-                                    </div>
+                                    <input type="text" id="repoPath" placeholder="C:\Projects\MyApp" list="pathHistory" autocomplete="off" />
+                                    <datalist id="pathHistory"></datalist>
+                                </div>
+                                <div>
+                                    <label>Pliki do analizy</label>
+                                    <select id="diffScope">
+                                        <option value="0">Ostatni commit (HEAD~1..HEAD)</option>
+                                        <option value="1">Od ostatniego pusha (origin..HEAD)</option>
+                                        <option value="2">Niezacommitowane zmiany</option>
+                                        <option value="3">Wszystkie pliki w repo</option>
+                                    </select>
                                 </div>
                                 <div>
                                     <label>Model Ollama</label>

@@ -6,5 +6,5 @@ namespace Reviq.Application.UseCases.GetRepoInfo;
 public class GetRepoInfoHandler(IGitProvider gitProvider)
 {
     public Task<RepoInfo> HandleAsync(GetRepoInfoQuery query) =>
-        gitProvider.GetRepoInfoAsync(query.RepoPath);
+        gitProvider.GetRepoInfoAsync(query.RepoPath, query.Scope, query.CommitHash);
 }
