@@ -366,6 +366,15 @@ input, select {
     transition: border-color 0.2s;
 }
 
+    /* ukryj strzałkę datalist */
+    input::-webkit-calendar-picker-indicator {
+        display: none !important;
+    }
+
+    input[list] {
+        appearance: none;
+    }
+
     input:focus, select:focus {
         border-color: var(--accent);
     }
