@@ -2,7 +2,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-
+using Reviq.Domain.Enums;
 namespace Reviq.Infrastructure.AI;
 
 /// <summary>
@@ -88,7 +88,7 @@ public abstract class OpenAICompatibleBase : BaseAIProvider
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[{Provider}] ReviewCode failed for {FilePath}", ProviderName, filePath);
+            _logger.LogError(ex, "[{Provider}] ReviewCode failed for {FilePath}", Name, filePath);
             throw;
         }
     }

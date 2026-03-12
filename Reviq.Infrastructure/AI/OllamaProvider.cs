@@ -1,4 +1,5 @@
-﻿using System.Net.Http.Json;
+﻿using Reviq.Domain.Enums;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
@@ -9,7 +10,7 @@ public class OllamaProvider : BaseAIProvider
     private readonly HttpClient _httpClient;
     private readonly ILogger<OllamaProvider> _logger;
 
-    public override string ProviderName => "Ollama";
+    public override ProviderName Name => ProviderName.Ollama;
 
     public OllamaProvider(HttpClient httpClient, ILogger<OllamaProvider> logger)
     {

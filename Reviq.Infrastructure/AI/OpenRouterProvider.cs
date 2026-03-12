@@ -1,11 +1,12 @@
-﻿using System.Net.Http.Headers;
+﻿using Reviq.Domain.Enums;
+using System.Net.Http.Headers;
 using Microsoft.Extensions.Logging;
 
 namespace Reviq.Infrastructure.AI;
 
 public class OpenRouterProvider : OpenAICompatibleBase
 {
-    public override string ProviderName => "OpenRouter";
+    public override ProviderName Name => ProviderName.OpenRouter;
 
     public OpenRouterProvider(HttpClient httpClient, ILogger<OpenRouterProvider> logger, string apiKey)
         : base(httpClient, logger, "https://openrouter.ai/api/v1", apiKey)

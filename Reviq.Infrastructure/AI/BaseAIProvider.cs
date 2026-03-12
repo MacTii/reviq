@@ -1,14 +1,12 @@
 ﻿using System.Text;
 using Reviq.Application.Interfaces;
+using Reviq.Domain.Enums;
 
 namespace Reviq.Infrastructure.AI;
 
-/// <summary>
-/// Wspólna logika dla wszystkich providerów AI — budowanie promptu i interfejs.
-/// </summary>
 public abstract class BaseAIProvider : IAIProvider
 {
-    public abstract string ProviderName { get; }
+    public abstract ProviderName Name { get; }
     public string CurrentModel { get; protected set; } = "";
 
     public abstract void SetModel(string model);

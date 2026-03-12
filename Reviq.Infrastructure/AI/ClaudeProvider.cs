@@ -1,4 +1,5 @@
-﻿using System.Net.Http.Json;
+﻿using Reviq.Domain.Enums;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
@@ -9,7 +10,7 @@ public class ClaudeProvider : BaseAIProvider
     private readonly HttpClient _httpClient;
     private readonly ILogger<ClaudeProvider> _logger;
 
-    public override string ProviderName => "Claude";
+    public override ProviderName Name => ProviderName.Claude;
 
     private static readonly string[] Models =
         { "claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-5" };

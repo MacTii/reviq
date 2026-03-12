@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Reviq.Application.Interfaces;
-using Reviq.Infrastructure.AI;
+using Reviq.Domain.Enums;
 
 namespace Reviq.API.Controllers;
 
@@ -8,7 +8,6 @@ namespace Reviq.API.Controllers;
 [Route("api/ai")]
 public class AIController(IAIProviderFactory providerFactory) : ControllerBase
 {
-    // GET /api/ai/providers — lista skonfigurowanych providerów + czy są online
     [HttpGet("providers")]
     public async Task<IActionResult> GetProviders()
     {
@@ -21,9 +20,9 @@ public class AIController(IAIProviderFactory providerFactory) : ControllerBase
             var available = p.HasConfig && await provider.IsAvailableAsync();
             result.Add(new
             {
-                name = p.Name,
-                label = p.Label,
-                type = p.Type,
+                name = p.NameString,
+                label = p.NameString,
+                type = p.TypeString,
                 available,
                 hasConfig = p.HasConfig
             });
@@ -33,36 +32,36 @@ public class AIController(IAIProviderFactory providerFactory) : ControllerBase
         return Ok(new
         {
             providers = result,
-            currentProvider = current.ProviderName
+            currentProvider = current.Name.ToString()
         });
     }
 
-    // GET /api/ai/models?provider=ollama — modele dla konkretnego providera
     [HttpGet("models")]
-    public async Task<IActionResult> GetModels([FromQuery] string provider = "ollama")
+    public async Task<IActionResult> GetModels([FromQuery] string provider = "Ollama")
     {
-        var p = providerFactory.GetProvider(provider);
+        if (!Enum.TryParse<ProviderName>(provider, ignoreCase: true, out var name))
+            return BadRequest($"Unknown provider: {provider}");
+
+        var p = providerFactory.GetProvider(name);
         var models = await p.GetAvailableModelsAsync();
-        return Ok(new { provider, models });
+        return Ok(new { provider = name.ToString(), models });
     }
 
-    // POST /api/ai/provider — przełącz aktywny provider
     [HttpPost("provider")]
     public IActionResult SetProvider([FromBody] SetProviderRequest req)
     {
-        if (string.IsNullOrWhiteSpace(req.Provider))
-            return BadRequest("Provider is required.");
+        if (!Enum.TryParse<ProviderName>(req.Provider, ignoreCase: true, out var name))
+            return BadRequest($"Unknown provider: {req.Provider}");
 
-        providerFactory.SetCurrent(req.Provider);
+        providerFactory.SetCurrent(name);
 
         var provider = providerFactory.GetCurrent();
         if (!string.IsNullOrWhiteSpace(req.Model))
             provider.SetModel(req.Model);
 
-        return Ok(new { success = true, provider = req.Provider, model = provider.CurrentModel });
+        return Ok(new { success = true, provider = name.ToString(), model = provider.CurrentModel });
     }
 
-    // POST /api/ai/model — zmień model w aktualnym providerze
     [HttpPost("model")]
     public IActionResult SetModel([FromBody] SetModelRequest req)
     {
