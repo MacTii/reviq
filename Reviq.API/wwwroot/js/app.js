@@ -16,36 +16,131 @@ function showPage(page) {
     if (page === 'history') loadHistory();
 }
 
-// ── Ollama status ─────────────────────────────────────────────────────────────
-async function checkOllama() {
+// ── Provider & model management ───────────────────────────────────────────────
+let currentProvider = 'ollama';
+
+async function initProviders() {
     try {
-        const r = await fetch(`${API}/ollama/status`);
+        const r = await fetch(`${API}/ai/providers`);
         const d = await r.json();
-        const dot = document.getElementById('ollamaDot');
-        const txt = document.getElementById('ollamaStatusText');
-        if (d.available) {
-            dot.className = 'status-dot online';
-            txt.textContent = `Ollama online · ${d.models.length} model${d.models.length !== 1 ? 'i' : ''}`;
-            ['modelSelect', 'snippetModel'].forEach(id => {
-                const sel = document.getElementById(id);
-                if (!sel) return;
-                sel.innerHTML = '';
-                d.models.forEach(m => {
-                    const opt = document.createElement('option');
-                    opt.value = m;
-                    opt.textContent = m;
-                    sel.appendChild(opt);
-                });
-            });
-        } else {
-            dot.className = 'status-dot offline';
-            txt.textContent = 'Ollama offline';
-        }
+        currentProvider = d.currentProvider ?? 'ollama';
+        renderProviderMenu(d.providers);
+        updateProviderBtn();
+        await loadModelsForProvider(currentProvider);
     } catch {
         document.getElementById('ollamaDot').className = 'status-dot offline';
-        document.getElementById('ollamaStatusText').textContent = 'API niedostępne';
+        document.getElementById('providerBtnText').textContent = 'AI niedostępne';
     }
 }
+
+function renderProviderMenu(providers) {
+    const menu = document.getElementById('providerMenu');
+    menu.innerHTML = providers.map(p => {
+        const dotClass = p.available ? 'online' : (!p.hasConfig ? 'unknown' : 'offline');
+        const isActive = p.name === currentProvider;
+        const unavail = !p.available;
+        return `<div class="provider-menu-item ${isActive ? 'active' : ''} ${unavail ? 'unavailable' : ''}"
+                     onclick="selectProvider('${p.name}', ${p.available})">
+            <div class="provider-item-left">
+                <div class="provider-item-dot ${dotClass}"></div>
+                <span class="provider-item-name">${p.label}</span>
+            </div>
+            <span class="provider-tag">${p.type === 'local' ? 'LOCAL' : 'CLOUD'}</span>
+        </div>`;
+    }).join('');
+}
+
+function updateProviderBtn() {
+    const dot = document.getElementById('ollamaDot');
+    const btn = document.getElementById('providerBtnText');
+
+    const activeLabel = document.querySelector('.provider-menu-item.active .provider-item-name');
+    btn.textContent = activeLabel ? activeLabel.textContent : currentProvider;
+
+    const activeDot = document.querySelector('.provider-menu-item.active .provider-item-dot');
+    dot.className = 'status-dot ' + (activeDot?.classList.contains('online') ? 'online' : 'offline');
+}
+
+function toggleProviderMenu() {
+    const menu = document.getElementById('providerMenu');
+    if (!menu.innerHTML.trim()) return; // nie otwieraj gdy puste (ładowanie)
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+async function selectProvider(name, available) {
+    if (!available) return;
+    closeProviderMenu();
+
+    await fetch(`${API}/ai/provider`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: name })
+    });
+
+    currentProvider = name;
+
+    // Odśwież menu
+    const r = await fetch(`${API}/ai/providers`);
+    const d = await r.json();
+    renderProviderMenu(d.providers);
+    updateProviderBtn();
+
+    // Załaduj modele dla nowego providera
+    await loadModelsForProvider(name);
+}
+
+async function loadModelsForProvider(providerName) {
+    const badge = providerName === 'ollama' || providerName === 'lmstudio' ? 'LOCAL' : 'CLOUD';
+
+    ['snippetModel', 'modelSelect'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (sel) sel.innerHTML = '<option value="">Ładowanie modeli...</option>';
+    });
+    ['snippetModelBadge', 'repoModelBadge'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = badge;
+    });
+
+    try {
+        const r = await fetch(`${API}/ai/models?provider=${encodeURIComponent(providerName)}`);
+        const d = await r.json();
+        const opts = d.models.length
+            ? d.models.map(m => `<option value="${m}">${m}</option>`).join('')
+            : '<option value="">Brak modeli</option>';
+
+        ['snippetModel', 'modelSelect'].forEach(id => {
+            const sel = document.getElementById(id);
+            if (sel) sel.innerHTML = opts;
+        });
+    } catch {
+        ['snippetModel', 'modelSelect'].forEach(id => {
+            const sel = document.getElementById(id);
+            if (sel) sel.innerHTML = '<option value="">Błąd ładowania</option>';
+        });
+    }
+}
+
+function closeProviderMenu() {
+    document.getElementById('providerMenu').style.display = 'none';
+}
+
+// Zamknij menu po kliknięciu poza nim
+document.addEventListener('click', e => {
+    if (!e.target.closest('.provider-dropdown')) closeProviderMenu();
+});
+
+// ── Model sync before review ───────────────────────────────────────────────────
+async function syncModelBeforeReview(scope) {
+    const model = document.getElementById(scope === 'snippet' ? 'snippetModel' : 'modelSelect').value;
+    if (model) {
+        await fetch(`${API}/ai/model`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model })
+        });
+    }
+}
+
 
 // ── Checkbox toggle ───────────────────────────────────────────────────────────
 document.addEventListener('click', e => {
@@ -131,6 +226,7 @@ function closePreviewModal() {
 
 // ── Snippet review ────────────────────────────────────────────────────────────
 async function startSnippetReview() {
+    await syncModelBeforeReview('snippet');
     const singleCode = document.getElementById('snippetCode').value.trim();
     const language = document.getElementById('snippetLang').value;
     const fileName = document.getElementById('snippetFileName').value.trim() || 'snippet.cs';
@@ -290,6 +386,7 @@ async function checkRepo() {
 }
 
 async function startReview() {
+    await syncModelBeforeReview('repo');
     const path = document.getElementById('repoPath').value.trim();
     const model = document.getElementById('modelSelect').value;
     const diffScope = parseInt(document.getElementById('diffScope')?.value ?? '0');
@@ -776,8 +873,8 @@ function exportPDF() {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-checkOllama();
-setInterval(checkOllama, 15000);
+initProviders();
+setInterval(initProviders, 30000);
 
 // ── History ───────────────────────────────────────────────────────────────────
 async function loadHistory() {

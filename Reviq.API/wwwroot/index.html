@@ -18,7 +18,13 @@
             <div class="header-right">
                 <div class="ollama-status">
                     <div class="status-dot" id="ollamaDot"></div>
-                    <span id="ollamaStatusText">Sprawdzanie Ollama...</span>
+                    <div class="provider-dropdown">
+                        <button class="provider-btn" id="providerBtn" onclick="toggleProviderMenu()">
+                            <span id="providerBtnText">Sprawdzanie...</span>
+                            <span class="provider-arrow">▾</span>
+                        </button>
+                        <div class="provider-menu" id="providerMenu" style="display:none"></div>
+                    </div>
                 </div>
             </div>
         </header>
@@ -83,10 +89,10 @@
                                     <div class="file-list" id="fileList"></div>
                                 </div>
                                 <div>
-                                    <label>Model Ollama</label>
+                                    <label>Model</label>
                                     <div class="model-select-wrap">
-                                        <select id="snippetModel"><option value="deepseek-coder-v2">deepseek-coder-v2</option></select>
-                                        <span class="model-badge">LOCAL</span>
+                                        <select id="snippetModel"><option value="">Wybierz model...</option></select>
+                                        <span class="model-badge" id="snippetModelBadge">LOCAL</span>
                                     </div>
                                 </div>
                                 <div id="snippetErrorBox" class="error-box"></div>
@@ -115,10 +121,10 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label>Model Ollama</label>
+                                    <label>Model</label>
                                     <div class="model-select-wrap">
-                                        <select id="modelSelect"><option value="deepseek-coder-v2">deepseek-coder-v2</option></select>
-                                        <span class="model-badge">LOCAL</span>
+                                        <select id="modelSelect"><option value="">Wybierz model...</option></select>
+                                        <span class="model-badge" id="repoModelBadge">LOCAL</span>
                                     </div>
                                 </div>
                                 <div>

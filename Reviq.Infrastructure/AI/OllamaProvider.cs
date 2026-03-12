@@ -8,6 +8,7 @@ namespace Reviq.Infrastructure.AI;
 
 public class OllamaProvider(HttpClient httpClient, ILogger<OllamaProvider> logger) : IAIProvider
 {
+    public string ProviderName => "ollama";
     public string CurrentModel { get; private set; } = "deepseek-coder-v2";
 
     public void SetModel(string model) => CurrentModel = model;
