@@ -2,7 +2,6 @@
 using Microsoft.Extensions.Logging;
 using Reviq.Application.Interfaces;
 using Reviq.Domain.Entities;
-using Reviq.Domain.Interfaces;
 
 namespace Reviq.Infrastructure.AI;
 
@@ -37,7 +36,7 @@ public class AIProviderFactory : IAIProviderFactory
     }
 
     public IEnumerable<string> GetAvailableProviders() =>
-        new[] { "ollama", "openai", "groq", "openrouter", "lmstudio" };
+        new[] { "ollama", "claude", "openai", "groq", "openrouter", "lmstudio" };
 
     public IEnumerable<ProviderInfo> GetConfiguredProviders()
     {
@@ -46,7 +45,7 @@ public class AIProviderFactory : IAIProviderFactory
             new("ollama", "Ollama", "local", _config["Ollama:BaseUrl"] ?? "http://localhost:11434")
         };
 
-        foreach (var name in new[] { "openai", "groq", "openrouter", "lmstudio" })
+        foreach (var name in new[] { "claude", "openai", "groq", "openrouter", "lmstudio" })
         {
             var key = _config[$"AI:{name}:ApiKey"] ?? "";
             var baseUrl = _config[$"AI:{name}:BaseUrl"] ?? "";
@@ -60,17 +59,26 @@ public class AIProviderFactory : IAIProviderFactory
         return list;
     }
 
-    private OpenAICompatibleProvider BuildExternalProvider(string name, string? apiKey = null, string? baseUrl = null)
+    private IAIProvider BuildExternalProvider(string name, string? apiKey = null, string? baseUrl = null)
     {
         var resolvedKey = apiKey ?? _config[$"AI:{name}:ApiKey"] ?? "";
         var resolvedUrl = baseUrl ?? _config[$"AI:{name}:BaseUrl"] ?? "";
-        var http = new HttpClient();
-        var logger = _loggerFactory.CreateLogger<OpenAICompatibleProvider>();
-        return new OpenAICompatibleProvider(http, logger, name, resolvedUrl, resolvedKey);
+        var logger = _loggerFactory.CreateLogger<ClaudeProvider>();
+
+        if (name == "claude")
+        {
+            var http = new HttpClient();
+            return new ClaudeProvider(http, logger, resolvedKey);
+        }
+
+        var httpOai = new HttpClient();
+        var logOai = _loggerFactory.CreateLogger<OpenAICompatibleProvider>();
+        return new OpenAICompatibleProvider(httpOai, logOai, name, resolvedUrl, resolvedKey);
     }
 
     private static string ProviderLabel(string name) => name switch
     {
+        "claude" => "Claude",
         "openai" => "OpenAI",
         "groq" => "Groq",
         "openrouter" => "OpenRouter",
