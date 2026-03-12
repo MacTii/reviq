@@ -17,13 +17,13 @@ function showPage(page) {
 }
 
 // ── Provider & model management ───────────────────────────────────────────────
-let currentProvider = 'ollama';
+let currentProvider = 'Ollama';
 
 async function initProviders() {
     try {
         const r = await fetch(`${API}/ai/providers`);
         const d = await r.json();
-        currentProvider = d.currentProvider ?? 'ollama';
+        currentProvider = d.currentProvider ?? 'Ollama';
         renderProviderMenu(d.providers);
         updateProviderBtn();
         await loadModelsForProvider(currentProvider);
@@ -90,7 +90,8 @@ async function selectProvider(name, available) {
 }
 
 async function loadModelsForProvider(providerName) {
-    const badge = providerName === 'ollama' || providerName === 'lmstudio' ? 'LOCAL' : 'CLOUD';
+    const isLocal = ['Ollama', 'LMStudio'].includes(providerName);
+    const badge = isLocal ? 'LOCAL' : 'CLOUD';
 
     ['snippetModel', 'modelSelect'].forEach(id => {
         const sel = document.getElementById(id);

@@ -7,82 +7,82 @@ namespace Reviq.Infrastructure.AI;
 
 public class AIProviderFactory : IAIProviderFactory
 {
-    private readonly OllamaProvider _ollamaProvider;
     private readonly IConfiguration _config;
     private readonly ILoggerFactory _loggerFactory;
 
-    private string _currentProviderName = "ollama";
-    private IAIProvider? _currentProvider;
+    // Ollama jest wstrzyknięta przez DI bo jako jedyna ma HttpClient skonfigurowany
+    // przez AddHttpClient<OllamaProvider> w Program.cs (BaseAddress, Timeout).
+    // Pozostałe providery tworzone są dynamicznie w Build() bo potrzebują
+    // klucza API lub URL który może się zmieniać w runtime.
+    private readonly OllamaProvider _ollama;
 
-    public AIProviderFactory(OllamaProvider ollamaProvider, IConfiguration config, ILoggerFactory loggerFactory)
+    private IAIProvider _current;
+
+    // Metadane providerów — nazwa wyświetlana, typ, czy wymaga klucza czy URL
+    private static readonly ProviderMeta[] Providers =
     {
-        _ollamaProvider = ollamaProvider;
+        new("Ollama",      "local",  RequiredConfig.None),
+        new("Claude",      "cloud",  RequiredConfig.ApiKey),
+        new("OpenAI",      "cloud",  RequiredConfig.ApiKey),
+        new("Groq",        "cloud",  RequiredConfig.ApiKey),
+        new("OpenRouter",  "cloud",  RequiredConfig.ApiKey),
+        new("LMStudio",    "local",  RequiredConfig.BaseUrl),
+    };
+
+    public AIProviderFactory(OllamaProvider ollama, IConfiguration config, ILoggerFactory loggerFactory)
+    {
+        _ollama = ollama;
         _config = config;
         _loggerFactory = loggerFactory;
-        _currentProvider = ollamaProvider;
+        _current = ollama;
     }
 
-    public IAIProvider GetCurrent() => _currentProvider ?? _ollamaProvider;
+    public IAIProvider GetCurrent() => _current;
 
     public IAIProvider GetProvider(string name) =>
-        name == "ollama" ? _ollamaProvider : BuildExternalProvider(name);
+        IsOllama(name) ? _ollama : Build(name);
 
-    public void SetCurrent(string providerName, string? apiKey = null, string? baseUrl = null)
-    {
-        _currentProviderName = providerName;
-        _currentProvider = providerName == "ollama"
-            ? _ollamaProvider
-            : BuildExternalProvider(providerName, apiKey, baseUrl);
-    }
+    public void SetCurrent(string name, string? apiKey = null, string? baseUrl = null) =>
+        _current = IsOllama(name) ? _ollama : Build(name, apiKey, baseUrl);
 
     public IEnumerable<string> GetAvailableProviders() =>
-        new[] { "ollama", "claude", "openai", "groq", "openrouter", "lmstudio" };
+        Providers.Select(p => p.Name);
 
-    public IEnumerable<ProviderInfo> GetConfiguredProviders()
-    {
-        var list = new List<ProviderInfo>
+    public IEnumerable<ProviderInfo> GetConfiguredProviders() =>
+        Providers.Select(p =>
         {
-            new("ollama", "Ollama", "local", _config["Ollama:BaseUrl"] ?? "http://localhost:11434")
+            var key = _config[$"AI:{p.Name}:ApiKey"] ?? "";
+            var url = _config[$"AI:{p.Name}:BaseUrl"] ?? "";
+            var hasConfig = p.Required switch
+            {
+                RequiredConfig.None => true,          // Ollama — URL zawsze skonfigurowany w appsettings (online/offline sprawdza IsAvailableAsync)
+                RequiredConfig.ApiKey => !string.IsNullOrWhiteSpace(key),
+                RequiredConfig.BaseUrl => !string.IsNullOrWhiteSpace(url),
+                _ => false
+            };
+            return new ProviderInfo(p.Name, p.Name, p.Type, url, hasConfig);
+        });
+
+    private IAIProvider Build(string name, string? apiKey = null, string? baseUrl = null)
+    {
+        var key = apiKey ?? _config[$"AI:{name}:ApiKey"] ?? "";
+        var url = baseUrl ?? _config[$"AI:{name}:BaseUrl"] ?? "";
+
+        return name switch
+        {
+            "Claude" => new ClaudeProvider(new HttpClient(), _loggerFactory.CreateLogger<ClaudeProvider>(), key),
+            "OpenAI" => new OpenAIProvider(new HttpClient(), _loggerFactory.CreateLogger<OpenAIProvider>(), key),
+            "Groq" => new GroqProvider(new HttpClient(), _loggerFactory.CreateLogger<GroqProvider>(), key),
+            "OpenRouter" => new OpenRouterProvider(new HttpClient(), _loggerFactory.CreateLogger<OpenRouterProvider>(), key),
+            "LMStudio" => new LMStudioProvider(new HttpClient(), _loggerFactory.CreateLogger<LMStudioProvider>(), url),
+            _ => throw new ArgumentException($"Unknown provider: {name}")
         };
-
-        foreach (var name in new[] { "claude", "openai", "groq", "openrouter", "lmstudio" })
-        {
-            var key = _config[$"AI:{name}:ApiKey"] ?? "";
-            var baseUrl = _config[$"AI:{name}:BaseUrl"] ?? "";
-            var hasConfig = name == "lmstudio"
-                ? !string.IsNullOrWhiteSpace(baseUrl)
-                : !string.IsNullOrWhiteSpace(key);
-
-            list.Add(new(name, ProviderLabel(name), name == "lmstudio" ? "local" : "cloud", baseUrl, hasConfig));
-        }
-
-        return list;
     }
 
-    private IAIProvider BuildExternalProvider(string name, string? apiKey = null, string? baseUrl = null)
-    {
-        var resolvedKey = apiKey ?? _config[$"AI:{name}:ApiKey"] ?? "";
-        var resolvedUrl = baseUrl ?? _config[$"AI:{name}:BaseUrl"] ?? "";
-        var logger = _loggerFactory.CreateLogger<ClaudeProvider>();
+    private static bool IsOllama(string name) =>
+        name.Equals("Ollama", StringComparison.OrdinalIgnoreCase);
 
-        if (name == "claude")
-        {
-            var http = new HttpClient();
-            return new ClaudeProvider(http, logger, resolvedKey);
-        }
-
-        var httpOai = new HttpClient();
-        var logOai = _loggerFactory.CreateLogger<OpenAICompatibleProvider>();
-        return new OpenAICompatibleProvider(httpOai, logOai, name, resolvedUrl, resolvedKey);
-    }
-
-    private static string ProviderLabel(string name) => name switch
-    {
-        "claude" => "Claude",
-        "openai" => "OpenAI",
-        "groq" => "Groq",
-        "openrouter" => "OpenRouter",
-        "lmstudio" => "LM Studio",
-        _ => name
-    };
+    private record ProviderMeta(string Name, string Type, RequiredConfig Required);
 }
+
+public enum RequiredConfig { None, ApiKey, BaseUrl }
