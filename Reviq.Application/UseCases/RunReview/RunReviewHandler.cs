@@ -144,6 +144,20 @@ public class RunReviewHandler(
                         CodeAfter = el.TryGetProperty("codeAfter", out var ca) ? ca.GetString() : null,
                     };
 
+                    // Jeśli model zwrócił identyczny kod przed i po — nie pokazujemy diffu
+                    if (string.Equals(issue.CodeBefore?.Trim(), issue.CodeAfter?.Trim(), StringComparison.Ordinal))
+                    {
+                        issue.CodeBefore = null;
+                        issue.CodeAfter = null;
+                    }
+
+                    // Jeśli codeAfter wygląda jak opis słowny a nie kod — nulluj
+                    if (!IsLikelyCode(issue.CodeBefore) || !IsLikelyCode(issue.CodeAfter))
+                    {
+                        issue.CodeBefore = null;
+                        issue.CodeAfter = null;
+                    }
+
                     if (el.TryGetProperty("line", out var line) && line.ValueKind == JsonValueKind.Number)
                         issue.Line = line.GetInt32();
 
@@ -282,6 +296,33 @@ public class RunReviewHandler(
         }
 
         return text;
+    }
+
+    /// <summary>
+    /// Heurystyka: czy string wygląda jak fragment kodu a nie opis słowny.
+    /// Odrzuca przypadki gdzie model wpisuje sugestię tekstową zamiast kodu.
+    /// </summary>
+    private static bool IsLikelyCode(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return true; // null jest ok — po prostu nie pokazujemy
+
+        var t = text.Trim();
+
+        // Za długie zdania bez znaków kodu to opis słowny
+        var hasCodeChars = t.Contains('{') || t.Contains('}') || t.Contains('(') ||
+                           t.Contains(')') || t.Contains(';') || t.Contains('=') ||
+                           t.Contains('.') || t.Contains('[') || t.Contains(']') ||
+                           t.Contains("=>") || t.Contains("//") || t.Contains("/*");
+
+        if (!hasCodeChars && t.Length > 40) return false;
+
+        // Zaczyna się od słów typowych dla opisów (nie kodu)
+        var lower = t.ToLowerInvariant();
+        var proseStarters = new[] { "consider ", "use ", "replace ", "implement ", "update ",
+                                    "change ", "refactor ", "instead ", "you should ", "this " };
+        if (proseStarters.Any(p => lower.StartsWith(p)) && !hasCodeChars) return false;
+
+        return true;
     }
 
     private static bool IsValidJson(string text)

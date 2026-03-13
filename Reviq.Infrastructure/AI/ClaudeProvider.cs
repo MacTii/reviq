@@ -53,7 +53,7 @@ public class ClaudeProvider : BaseAIProvider
         var request = new
         {
             model = CurrentModel,
-            max_tokens = 4000,
+            max_tokens = 16000,
             system = "You are an expert code reviewer. Always respond with valid JSON only, no markdown.",
             messages = new[] { new { role = "user", content = BuildPrompt(code, language, filePath, categories) } }
         };

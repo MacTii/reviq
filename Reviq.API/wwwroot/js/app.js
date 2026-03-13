@@ -18,15 +18,17 @@ function showPage(page) {
 
 // ── Provider & model management ───────────────────────────────────────────────
 let currentProvider = 'Ollama';
+let currentModel    = '';
 
 async function initProviders() {
     try {
         const r = await fetch(`${API}/ai/providers`);
         const d = await r.json();
         currentProvider = d.currentProvider ?? 'Ollama';
+        currentModel    = d.currentModel    ?? '';
         renderProviderMenu(d.providers);
         updateProviderBtn();
-        await loadModelsForProvider(currentProvider);
+        await loadModelsForProvider(currentProvider, currentModel);
     } catch {
         document.getElementById('ollamaDot').className = 'status-dot offline';
         document.getElementById('providerBtnText').textContent = 'AI niedostępne';
@@ -38,7 +40,7 @@ function renderProviderMenu(providers) {
     menu.innerHTML = providers.map(p => {
         const dotClass = p.available ? 'online' : (!p.hasConfig ? 'unknown' : 'offline');
         const isActive = p.name === currentProvider;
-        const unavail = !p.available;
+        const unavail  = !p.available;
         return `<div class="provider-menu-item ${isActive ? 'active' : ''} ${unavail ? 'unavailable' : ''}"
                      onclick="selectProvider('${p.name}', ${p.available})">
             <div class="provider-item-left">
@@ -55,7 +57,7 @@ function updateProviderBtn() {
     const btn = document.getElementById('providerBtnText');
 
     const activeLabel = document.querySelector('.provider-menu-item.active .provider-item-name');
-    btn.textContent = activeLabel ? activeLabel.textContent : currentProvider;
+    btn.textContent   = activeLabel ? activeLabel.textContent : currentProvider;
 
     const activeDot = document.querySelector('.provider-menu-item.active .provider-item-dot');
     dot.className = 'status-dot ' + (activeDot?.classList.contains('online') ? 'online' : 'offline');
@@ -89,9 +91,9 @@ async function selectProvider(name, available) {
     await loadModelsForProvider(name);
 }
 
-async function loadModelsForProvider(providerName) {
+async function loadModelsForProvider(providerName, activeModel = '') {
     const isLocal = ['Ollama', 'LMStudio'].includes(providerName);
-    const badge = isLocal ? 'LOCAL' : 'CLOUD';
+    const badge   = isLocal ? 'LOCAL' : 'CLOUD';
 
     ['snippetModel', 'modelSelect'].forEach(id => {
         const sel = document.getElementById(id);
@@ -105,8 +107,19 @@ async function loadModelsForProvider(providerName) {
     try {
         const r = await fetch(`${API}/ai/models?provider=${encodeURIComponent(providerName)}`);
         const d = await r.json();
-        const opts = d.models.length
-            ? d.models.map(m => `<option value="${m}">${m}</option>`).join('')
+        const models = d.models ?? [];
+
+        // Zachowaj model aktualnie wybrany przez użytkownika (jeśli istnieje)
+        const userSelected = (() => {
+            const sel = document.getElementById('snippetModel');
+            return sel && sel.value ? sel.value : null;
+        })();
+        const modelToSelect = userSelected && models.includes(userSelected)
+            ? userSelected
+            : (activeModel && models.includes(activeModel) ? activeModel : models[0] ?? '');
+
+        const opts = models.length
+            ? models.map(m => `<option value="${m}" ${m === modelToSelect ? 'selected' : ''}>${m}</option>`).join('')
             : '<option value="">Brak modeli</option>';
 
         ['snippetModel', 'modelSelect'].forEach(id => {
@@ -331,7 +344,7 @@ async function checkRepo() {
     const path = document.getElementById('repoPath').value.trim();
     if (!path) return showError('Podaj ścieżkę do repozytorium.');
 
-    const preview = document.getElementById('repoPreview');
+    const preview   = document.getElementById('repoPreview');
     const diffScope = parseInt(document.getElementById('diffScope')?.value ?? '0');
 
     // Toggle — ta sama ścieżka i ten sam zakres → zamknij
@@ -364,21 +377,21 @@ async function checkRepo() {
                 </div>
                 <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px;max-height:260px;overflow-y:auto;padding-right:4px">
                     ${d.changedFiles.map(f => {
-                const parts = f.replace(/\\/g, '/').split('/');
-                const file = parts.pop();
-                const dir = parts.join('/');
-                return `<div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 10px">
+                        const parts = f.replace(/\\/g, '/').split('/');
+                        const file  = parts.pop();
+                        const dir   = parts.join('/');
+                        return `<div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 10px">
                             <span style="color:var(--text3);font-size:10px;flex-shrink:0">•</span>
                             <div style="min-width:0">
                                 <div style="font-family:var(--mono);font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(file)}</div>
                                 ${dir ? `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(dir)}</div>` : ''}
                             </div>
                         </div>`;
-            }).join('')}
+                    }).join('')}
                     ${d.changedFiles.length === 0 ? '<div style="color:var(--yellow)">Brak plików w wybranym zakresie.</div>' : ''}
                 </div>`;
         }
-        preview.dataset.path = path;
+        preview.dataset.path  = path;
         preview.dataset.scope = diffScope;
         preview.style.display = 'block';
     } catch {
@@ -388,14 +401,14 @@ async function checkRepo() {
 
 async function startReview() {
     await syncModelBeforeReview('repo');
-    const path = document.getElementById('repoPath').value.trim();
-    const model = document.getElementById('modelSelect').value;
+    const path      = document.getElementById('repoPath').value.trim();
+    const model     = document.getElementById('modelSelect').value;
     const diffScope = parseInt(document.getElementById('diffScope')?.value ?? '0');
     if (!path) return showError('Podaj ścieżkę do repozytorium.');
     clearError();
 
     const btn = document.getElementById('reviewBtn');
-    btn.disabled = true;
+    btn.disabled    = true;
     btn.textContent = '⏳ Analizuję...';
     showLoader();
 
@@ -412,7 +425,7 @@ async function startReview() {
     } catch {
         showError('Nie można połączyć z API.');
     } finally {
-        btn.disabled = false;
+        btn.disabled    = false;
         btn.textContent = '⚡ Uruchom Review';
     }
 }
@@ -875,7 +888,20 @@ function exportPDF() {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 initProviders();
-setInterval(initProviders, 30000);
+
+// Co 30s tylko aktualizuj status dostępności — NIE przeładowuj modeli
+async function pollProviderStatus() {
+    try {
+        const r = await fetch(`${API}/ai/providers`);
+        const d = await r.json();
+        renderProviderMenu(d.providers);   // tylko kropki dostępności
+        updateProviderBtn();
+    } catch {
+        document.getElementById('ollamaDot').className = 'status-dot offline';
+        document.getElementById('providerBtnText').textContent = 'AI niedostępne';
+    }
+}
+setInterval(pollProviderStatus, 30000);
 
 // ── History ───────────────────────────────────────────────────────────────────
 async function loadHistory() {

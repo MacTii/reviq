@@ -57,7 +57,7 @@ public class OllamaProvider : BaseAIProvider
             model = CurrentModel,
             prompt = BuildPrompt(code, language, filePath, categories),
             stream = false,
-            options = new { temperature = 0.1f, num_predict = 6000 }
+            options = new { temperature = 0.1f, num_predict = 16000, num_ctx = 8192 }
         };
 
         try
