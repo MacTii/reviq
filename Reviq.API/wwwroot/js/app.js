@@ -757,7 +757,7 @@ function _renderResults(data, area, isMain, prefix) {
                     <div id="${prefix}empty-${idx}" class="no-issues-msg" style="display:none">
                         ✓ Wszystkie issues ukryte lub przefiltrowane.
                     </div>
-                    ${file.issues.length === 0 ? `<div style="padding:14px 16px;font-size:12px;color:var(--green)">✓ ' + t('results.noIssues') + '</div>` : ''}
+                    ${file.issues.length === 0 ? `<div style="padding:14px 16px;font-size:12px;color:var(--green)">✓ ${t('results.noIssues')}</div>` : ''}
                 </div>
             </div>`;
     });
@@ -789,7 +789,7 @@ function renderIssue(issue, cardIdx, issueIdx, isMain = true) {
                     <span class="issue-title">${escapeHtml(issue.title)}</span>
                     <span class="issue-cat">${escapeHtml(issue.category)}</span>
                     ${issue.line ? `<span class="issue-line">L${issue.line}</span>` : ''}
-                    ${isMain ? `<button class="ignore-btn" onclick="ignoreIssue('${cardIdx}',${issueIdx})" title="Oznacz jako false positive">✕ ' + t('btn.ignore') + '</button>` : ''}
+                    ${isMain ? `<button class="ignore-btn" onclick="ignoreIssue('${cardIdx}',${issueIdx})" title="Oznacz jako false positive">${t('btn.ignore')}</button>` : ''}
                 </div>
                 <div class="issue-desc">${escapeHtml(issue.description)}</div>
                 ${issue.suggestion ? `<div class="issue-suggestion">${escapeHtml(issue.suggestion)}</div>` : ''}
@@ -885,8 +885,8 @@ function buildReportHTML(data) {
             const sevLabel = { Critical: 'KRYTYCZNY', Warning: 'OSTRZEŻENIE', Info: 'INFO' }[issue.severity] ?? issue.severity;
             const diff = (issue.codeBefore || issue.codeAfter) ? `
                 <div style="margin-top:10px;border-radius:6px;overflow:hidden;border:1px solid #252d42">
-                    ${issue.codeBefore ? `<div style="background:#1a0f0f;padding:4px 10px;font-size:10px;color:#f87171;font-weight:700;border-bottom:1px solid #252d42">❌ ' + t('diff.before') + '</div><pre style="margin:0;padding:10px;font-family:monospace;font-size:11px;background:#120a0a;color:#c8c8c8;overflow-x:auto;white-space:pre">${escapeHtml(stripCodeFences(issue.codeBefore))}</pre>` : ''}
-                    ${issue.codeAfter ? `<div style="background:#0a1a10;padding:4px 10px;font-size:10px;color:#34d399;font-weight:700;border-top:1px solid #252d42;border-bottom:1px solid #252d42">✅ ' + t('diff.after') + '</div><pre style="margin:0;padding:10px;font-family:monospace;font-size:11px;background:#080f0a;color:#c8c8c8;overflow-x:auto;white-space:pre">${escapeHtml(stripCodeFences(issue.codeAfter))}</pre>` : ''}
+                    ${issue.codeBefore ? `<div style="background:#1a0f0f;padding:4px 10px;font-size:10px;color:#f87171;font-weight:700;border-bottom:1px solid #252d42">❌ ${t('diff.before')}</div><pre style="margin:0;padding:10px;font-family:monospace;font-size:11px;background:#120a0a;color:#c8c8c8;overflow-x:auto;white-space:pre">${escapeHtml(stripCodeFences(issue.codeBefore))}</pre>` : ''}
+                    ${issue.codeAfter ? `<div style="background:#0a1a10;padding:4px 10px;font-size:10px;color:#34d399;font-weight:700;border-top:1px solid #252d42;border-bottom:1px solid #252d42">✅ ${t('diff.after')}</div><pre style="margin:0;padding:10px;font-family:monospace;font-size:11px;background:#080f0a;color:#c8c8c8;overflow-x:auto;white-space:pre">${escapeHtml(stripCodeFences(issue.codeAfter))}</pre>` : ''}
                 </div>` : '';
             return `
                 <div style="padding:14px 16px;border-top:1px solid #1e2435">
@@ -911,7 +911,7 @@ function buildReportHTML(data) {
                     </div>
                     <span style="font-family:sans-serif;font-size:14px;font-weight:800;color:${fc}">${file.score}/100</span>
                 </div>
-                ${issueRows || '<div style="padding:14px 16px;font-size:12px;color:#34d399">✓ ' + t('results.noIssues') + '</div>'}            </div>`;
+                ${issueRows || `<div style="padding:14px 16px;font-size:12px;color:#34d399">✓ ${t('results.noIssues')}</div>`}            </div>`;
     }).join('');
 
     return `<!DOCTYPE html>
