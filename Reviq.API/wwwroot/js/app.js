@@ -1,5 +1,93 @@
 ﻿const API = '/api';
 
+// ── i18n ──────────────────────────────────────────────────────────────────────
+let _locale = {};
+let _localeFallback = {};  // zawsze pl jako fallback
+let _lang = localStorage.getItem('lang') || 'pl';
+
+async function loadLocale(lang) {
+    try {
+        // Zawsze załaduj pl jako fallback
+        if (Object.keys(_localeFallback).length === 0) {
+            const fb = await fetch('/locales/pl.json');
+            _localeFallback = await fb.json();
+        }
+        const r = await fetch(`/locales/${lang}.json`);
+        _locale = await r.json();
+        _lang = lang;
+        localStorage.setItem('lang', lang);
+        applyTranslations();
+        const btnText = document.getElementById('providerBtnText');
+        if (btnText && !currentProvider) btnText.textContent = t('provider.checking');
+    } catch {
+        console.warn(`Failed to load locale: ${lang}`);
+    }
+}
+
+function t(key, vars = {}) {
+    let str = _locale[key] ?? _localeFallback[key] ?? key;
+    for (const [k, v] of Object.entries(vars))
+        str = str.replace(`{${k}}`, v);
+    return str;
+}
+
+function applyTranslations() {
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        const attr = el.getAttribute('data-i18n-attr');
+        if (attr) el.setAttribute(attr, t(key));
+        else el.textContent = t(key);
+    });
+    document.documentElement.lang = _lang;
+
+    // Odśwież lineCount
+    const lineCountEl = document.getElementById('lineCount');
+    if (lineCountEl) {
+        const n = parseInt(lineCountEl.textContent) || 0;
+        lineCountEl.textContent = t('lines', { n });
+    }
+
+    // Odśwież providerBtnText tylko jeśli jest w stanie "Sprawdzanie"
+    const btnText = document.getElementById('providerBtnText');
+    if (btnText) {
+        const cur = btnText.textContent.trim();
+        if (cur === 'Sprawdzanie...' || cur === 'Checking...' || cur === t('provider.checking', {}))
+            btnText.textContent = t('provider.checking');
+    }
+
+    // Wyczyść error boxy — przy zmianie języka stary komunikat byłby w złym języku
+    ['errorBox', 'snippetErrorBox'].forEach(id => {
+        const b = document.getElementById(id);
+        if (b) { b.textContent = ''; b.classList.remove('active'); }
+    });
+
+    // Odśwież loader jeśli jest aktywny
+    if (_lastLoaderMsg !== null && document.querySelector('#resultsArea .loader.active'))
+        _renderLoader(t('btn.analyzing'));
+
+    // Odśwież repo info jeśli jest widoczny
+    const preview = document.getElementById('repoPreview');
+    if (_lastRepoInfo && preview && preview.style.display === 'block')
+        renderRepoInfo(_lastRepoInfo.d, _lastRepoInfo.diffScope);
+
+    // Odśwież historię jeśli jest widoczna
+    const historyPage = document.getElementById('pageHistory');
+    if (historyPage && historyPage.style.display !== 'none')
+        loadHistory();
+}
+
+function setLang(lang) {
+    loadLocale(lang);
+    document.querySelectorAll('.lang-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.lang === lang));
+}
+
+// Ustaw aktywny przycisk języka przy starcie
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.lang-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.lang === _lang));
+});
+
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 function switchTab(tab) {
     document.getElementById('tabSnippet').classList.toggle('active', tab === 'snippet');
@@ -18,20 +106,21 @@ function showPage(page) {
 
 // ── Provider & model management ───────────────────────────────────────────────
 let currentProvider = 'Ollama';
-let currentModel    = '';
+let currentModel = '';
+let _lastRepoInfo = null; // cache dla odświeżenia po zmianie języka
 
 async function initProviders() {
     try {
         const r = await fetch(`${API}/ai/providers`);
         const d = await r.json();
         currentProvider = d.currentProvider ?? 'Ollama';
-        currentModel    = d.currentModel    ?? '';
+        currentModel = d.currentModel ?? '';
         renderProviderMenu(d.providers);
         updateProviderBtn();
         await loadModelsForProvider(currentProvider, currentModel);
     } catch {
         document.getElementById('ollamaDot').className = 'status-dot offline';
-        document.getElementById('providerBtnText').textContent = 'AI niedostępne';
+        document.getElementById('providerBtnText').textContent = t('provider.unavailable');
     }
 }
 
@@ -40,7 +129,7 @@ function renderProviderMenu(providers) {
     menu.innerHTML = providers.map(p => {
         const dotClass = p.available ? 'online' : (!p.hasConfig ? 'unknown' : 'offline');
         const isActive = p.name === currentProvider;
-        const unavail  = !p.available;
+        const unavail = !p.available;
         return `<div class="provider-menu-item ${isActive ? 'active' : ''} ${unavail ? 'unavailable' : ''}"
                      onclick="selectProvider('${p.name}', ${p.available})">
             <div class="provider-item-left">
@@ -57,7 +146,7 @@ function updateProviderBtn() {
     const btn = document.getElementById('providerBtnText');
 
     const activeLabel = document.querySelector('.provider-menu-item.active .provider-item-name');
-    btn.textContent   = activeLabel ? activeLabel.textContent : currentProvider;
+    btn.textContent = activeLabel ? activeLabel.textContent : currentProvider;
 
     const activeDot = document.querySelector('.provider-menu-item.active .provider-item-dot');
     dot.className = 'status-dot ' + (activeDot?.classList.contains('online') ? 'online' : 'offline');
@@ -93,11 +182,11 @@ async function selectProvider(name, available) {
 
 async function loadModelsForProvider(providerName, activeModel = '') {
     const isLocal = ['Ollama', 'LMStudio'].includes(providerName);
-    const badge   = isLocal ? 'LOCAL' : 'CLOUD';
+    const badge = isLocal ? 'LOCAL' : 'CLOUD';
 
     ['snippetModel', 'modelSelect'].forEach(id => {
         const sel = document.getElementById(id);
-        if (sel) sel.innerHTML = '<option value="">Ładowanie modeli...</option>';
+        if (sel) sel.innerHTML = '<option value="">' + t('model.loading') + '</option>';
     });
     ['snippetModelBadge', 'repoModelBadge'].forEach(id => {
         const el = document.getElementById(id);
@@ -120,7 +209,7 @@ async function loadModelsForProvider(providerName, activeModel = '') {
 
         const opts = models.length
             ? models.map(m => `<option value="${m}" ${m === modelToSelect ? 'selected' : ''}>${m}</option>`).join('')
-            : '<option value="">Brak modeli</option>';
+            : `<option value="">${t('model.none')}</option>`;
 
         ['snippetModel', 'modelSelect'].forEach(id => {
             const sel = document.getElementById(id);
@@ -129,7 +218,7 @@ async function loadModelsForProvider(providerName, activeModel = '') {
     } catch {
         ['snippetModel', 'modelSelect'].forEach(id => {
             const sel = document.getElementById(id);
-            if (sel) sel.innerHTML = '<option value="">Błąd ładowania</option>';
+            if (sel) sel.innerHTML = '<option value="">' + t('model.error') + '</option>';
         });
     }
 }
@@ -168,7 +257,7 @@ document.addEventListener('click', e => {
 function updateLineCount() {
     const code = document.getElementById('snippetCode').value;
     const lines = code ? code.split('\n').length : 0;
-    document.getElementById('lineCount').textContent = `${lines} linii`;
+    document.getElementById('lineCount').textContent = t('lines', { n: lines });
     const ext = { 'C#': '.cs', 'TypeScript': '.ts', 'JavaScript': '.js', 'Python': '.py', 'Java': '.java', 'Go': '.go', 'Rust': '.rs', 'PHP': '.php' };
     const lang = document.getElementById('snippetLang').value;
     const fn = document.getElementById('snippetFileName');
@@ -227,7 +316,7 @@ function previewFile(name) {
 function previewCode(name, code) {
     const lines = code.split('\n').length;
     document.getElementById('previewModalTitle').textContent = name;
-    document.getElementById('previewModalMeta').textContent = `${lines} linii`;
+    document.getElementById('previewModalMeta').textContent = t('lines', { n: lines });
     document.getElementById('previewModalCode').textContent = code;
     document.getElementById('previewModal').style.display = 'flex';
     document.body.style.overflow = 'hidden';
@@ -258,13 +347,13 @@ async function startSnippetReview() {
         filesToReview.push({ code: f.content, language: lang, fileName: f.name });
     });
 
-    if (filesToReview.length === 0) return showSnippetError('Wklej kod lub dodaj plik do analizy.');
+    if (filesToReview.length === 0) return showSnippetError(t('error.noCode'));
     clearSnippetError();
 
     const btn = document.getElementById('snippetBtn');
     btn.disabled = true;
-    btn.textContent = `⏳ Analizuję ${filesToReview.length} plik${filesToReview.length > 1 ? 'i' : ''}...`;
-    showLoader(`Analizuję ${filesToReview.length} plik${filesToReview.length > 1 ? 'ów' : ''}...`);
+    btn.textContent = t('analyzing.files', { n: filesToReview.length, files: filesToReview.length > 1 ? t('files.countPlural') : t('files.count') });
+    showLoader(t('analyzing.files', { n: filesToReview.length, files: filesToReview.length > 1 ? t('files.countPlural') : t('files.count') }));
 
     try {
         const res = await fetch(`${API}/code/review-batch?model=${encodeURIComponent(model)}`, {
@@ -280,14 +369,14 @@ async function startSnippetReview() {
         });
 
         const data = await res.json();
-        if (!res.ok) { showSnippetError(data.error || 'Błąd analizy.'); return; }
+        if (!res.ok) { showSnippetError(data.error || t('error.analysisError')); return; }
 
         renderResults(data);
     } catch (err) {
-        showSnippetError(`Błąd: ${err.message}`);
+        showSnippetError(`${t('error.analysisError')} ${err.message}`);
     } finally {
         btn.disabled = false;
-        btn.textContent = '⚡ Analizuj kod';
+        btn.textContent = t('btn.analyze');
     }
 }
 
@@ -340,11 +429,51 @@ function getSelectedCategories() {
 
 document.addEventListener('DOMContentLoaded', updatePathDatalist);
 
+function renderRepoInfo(d, diffScope) {
+    const content = document.getElementById('repoInfoContent');
+    if (!content) return;
+    const scopeLabels = [
+        t('diffScope.lastCommit'),
+        t('diffScope.sinceLastPush'),
+        t('diffScope.uncommitted'),
+        t('diffScope.allFiles')
+    ];
+    content.innerHTML = `
+        <div style="display:flex;gap:8px;align-items:center">
+            <span style="color:var(--text3)">${t('repo.branch')}:</span>
+            <span style="color:var(--accent)">${escapeHtml(d.branch)}</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span style="color:var(--text3)">${t('repo.lastCommit')}:</span>
+            <span style="font-family:var(--mono)">${escapeHtml(d.latestCommit)}</span>
+            <span style="color:var(--text3);font-size:11px">${escapeHtml(d.commitMessage)}</span>
+        </div>
+        <div style="color:var(--text3);margin-top:4px">
+            ${t('repo.files')} — <span style="color:var(--accent2)">${scopeLabels[diffScope]}</span>
+            <span style="color:var(--text)">(${d.changedFiles.length})</span>:
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px;max-height:260px;overflow-y:auto;padding-right:4px">
+            ${d.changedFiles.map(f => {
+        const parts = f.replace(/\\/g, '/').split('/');
+        const file = parts.pop();
+        const dir = parts.join('/');
+        return `<div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 10px">
+                    <span style="color:var(--text3);font-size:10px;flex-shrink:0">•</span>
+                    <div style="min-width:0">
+                        <div style="font-family:var(--mono);font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(file)}</div>
+                        ${dir ? `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(dir)}</div>` : ''}
+                    </div>
+                </div>`;
+    }).join('')}
+            ${d.changedFiles.length === 0 ? `<div style="color:var(--yellow)">${t('repo.noFiles')}</div>` : ''}
+        </div>`;
+}
+
 async function checkRepo() {
     const path = document.getElementById('repoPath').value.trim();
-    if (!path) return showError('Podaj ścieżkę do repozytorium.');
+    if (!path) return showError(t('error.noRepoPath'));
 
-    const preview   = document.getElementById('repoPreview');
+    const preview = document.getElementById('repoPreview');
     const diffScope = parseInt(document.getElementById('diffScope')?.value ?? '0');
 
     // Toggle — ta sama ścieżka i ten sam zakres → zamknij
@@ -358,58 +487,30 @@ async function checkRepo() {
         const d = await r.json();
         const content = document.getElementById('repoInfoContent');
         if (!d.isValid) {
-            content.innerHTML = `<span style="color:var(--red)">${d.error || 'Nieprawidłowe repozytorium'}</span>`;
+            content.innerHTML = `<span style="color:var(--red)">${d.error || t('repo.error.invalid')}</span>`;
         } else {
-            const scopeLabels = ['ostatni commit', 'od ostatniego pusha', 'niezacommitowane', 'wszystkie pliki'];
-            content.innerHTML = `
-                <div style="display:flex;gap:8px;align-items:center">
-                    <span style="color:var(--text3)">Branch:</span>
-                    <span style="color:var(--accent)">${escapeHtml(d.branch)}</span>
-                </div>
-                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                    <span style="color:var(--text3)">Commit:</span>
-                    <span style="font-family:var(--mono)">${escapeHtml(d.latestCommit)}</span>
-                    <span style="color:var(--text3);font-size:11px">${escapeHtml(d.commitMessage)}</span>
-                </div>
-                <div style="color:var(--text3);margin-top:4px">
-                    Pliki do analizy — <span style="color:var(--accent2)">${scopeLabels[diffScope]}</span>
-                    <span style="color:var(--text)">(${d.changedFiles.length})</span>:
-                </div>
-                <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px;max-height:260px;overflow-y:auto;padding-right:4px">
-                    ${d.changedFiles.map(f => {
-                        const parts = f.replace(/\\/g, '/').split('/');
-                        const file  = parts.pop();
-                        const dir   = parts.join('/');
-                        return `<div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 10px">
-                            <span style="color:var(--text3);font-size:10px;flex-shrink:0">•</span>
-                            <div style="min-width:0">
-                                <div style="font-family:var(--mono);font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(file)}</div>
-                                ${dir ? `<div style="font-family:var(--mono);font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(dir)}</div>` : ''}
-                            </div>
-                        </div>`;
-                    }).join('')}
-                    ${d.changedFiles.length === 0 ? '<div style="color:var(--yellow)">Brak plików w wybranym zakresie.</div>' : ''}
-                </div>`;
+            _lastRepoInfo = { d, diffScope };
+            renderRepoInfo(d, diffScope);
         }
-        preview.dataset.path  = path;
+        preview.dataset.path = path;
         preview.dataset.scope = diffScope;
         preview.style.display = 'block';
     } catch {
-        showError('Nie można połączyć z API.');
+        showError(t('error.noConnection'));
     }
 }
 
 async function startReview() {
     await syncModelBeforeReview('repo');
-    const path      = document.getElementById('repoPath').value.trim();
-    const model     = document.getElementById('modelSelect').value;
+    const path = document.getElementById('repoPath').value.trim();
+    const model = document.getElementById('modelSelect').value;
     const diffScope = parseInt(document.getElementById('diffScope')?.value ?? '0');
-    if (!path) return showError('Podaj ścieżkę do repozytorium.');
+    if (!path) return showError(t('error.noRepoPath'));
     clearError();
 
     const btn = document.getElementById('reviewBtn');
-    btn.disabled    = true;
-    btn.textContent = '⏳ Analizuję...';
+    btn.disabled = true;
+    btn.textContent = t('btn.analyzing');
     showLoader();
 
     try {
@@ -419,14 +520,14 @@ async function startReview() {
             body: JSON.stringify({ repoPath: path, files: [], categories: getSelectedCategories(), diffScope })
         });
         const data = await r.json();
-        if (!r.ok) { showError(data.error || 'Błąd podczas analizy.'); return; }
+        if (!r.ok) { showError(data.error || t('error.analysisErrorRepo')); return; }
         saveRecentPath(path);
         renderResults(data);
     } catch {
-        showError('Nie można połączyć z API.');
+        showError(t('error.noConnection'));
     } finally {
-        btn.disabled    = false;
-        btn.textContent = '⚡ Uruchom Review';
+        btn.disabled = false;
+        btn.textContent = t('btn.runReview');
     }
 }
 
@@ -489,7 +590,7 @@ function updateFilterCount() {
     const visible = allIssues.filter(({ issue, fIdx, iIdx }) => isIssueCounted(issue, fIdx, iIdx)).length;
     const hidden = total - visible;
     const countEl = document.getElementById('filter-count');
-    if (countEl) countEl.textContent = hidden > 0 ? `(ukryto ${hidden} z ${total})` : '';
+    if (countEl) countEl.textContent = hidden > 0 ? t('results.hidden', { hidden, total }) : '';
 }
 
 function ignoreIssue(cardIdx, issueIdx) {
@@ -500,11 +601,11 @@ function ignoreIssue(cardIdx, issueIdx) {
     if (_ignoredIssues.has(key)) {
         _ignoredIssues.delete(key);
         if (el) el.classList.remove('ignored');
-        if (btn) btn.textContent = '✕ ignoruj';
+        if (btn) btn.textContent = t('btn.ignore');
     } else {
         _ignoredIssues.add(key);
         if (el) el.classList.add('ignored');
-        if (btn) btn.textContent = '↩ przywróć';
+        if (btn) btn.textContent = t('btn.restore');
     }
 
     applyFilters();
@@ -656,7 +757,7 @@ function _renderResults(data, area, isMain, prefix) {
                     <div id="${prefix}empty-${idx}" class="no-issues-msg" style="display:none">
                         ✓ Wszystkie issues ukryte lub przefiltrowane.
                     </div>
-                    ${file.issues.length === 0 ? `<div style="padding:14px 16px;font-size:12px;color:var(--green)">✓ Brak problemów.</div>` : ''}
+                    ${file.issues.length === 0 ? `<div style="padding:14px 16px;font-size:12px;color:var(--green)">✓ ' + t('results.noIssues') + '</div>` : ''}
                 </div>
             </div>`;
     });
@@ -688,7 +789,7 @@ function renderIssue(issue, cardIdx, issueIdx, isMain = true) {
                     <span class="issue-title">${escapeHtml(issue.title)}</span>
                     <span class="issue-cat">${escapeHtml(issue.category)}</span>
                     ${issue.line ? `<span class="issue-line">L${issue.line}</span>` : ''}
-                    ${isMain ? `<button class="ignore-btn" onclick="ignoreIssue('${cardIdx}',${issueIdx})" title="Oznacz jako false positive">✕ ignoruj</button>` : ''}
+                    ${isMain ? `<button class="ignore-btn" onclick="ignoreIssue('${cardIdx}',${issueIdx})" title="Oznacz jako false positive">✕ ' + t('btn.ignore') + '</button>` : ''}
                 </div>
                 <div class="issue-desc">${escapeHtml(issue.description)}</div>
                 ${issue.suggestion ? `<div class="issue-suggestion">${escapeHtml(issue.suggestion)}</div>` : ''}
@@ -713,7 +814,7 @@ function renderIssue(issue, cardIdx, issueIdx, isMain = true) {
 }
 
 function sevLabel(sev) {
-    return { Critical: 'KRYTYCZNY', Warning: 'OSTRZEŻENIE', Info: 'INFO' }[sev] ?? sev;
+    return { Critical: t('severity.critical'), Warning: t('severity.warning'), Info: t('severity.info') }[sev] ?? sev;
 }
 
 function toggleDiff(id) {
@@ -721,10 +822,10 @@ function toggleDiff(id) {
     const btn = el.previousElementSibling;
     if (el.style.display === 'none') {
         el.style.display = 'block';
-        btn.querySelector('span').textContent = '⟨/⟩ Ukryj kod';
+        btn.querySelector('span').textContent = t('btn.hideCode');
     } else {
         el.style.display = 'none';
-        btn.querySelector('span').textContent = '⟨/⟩ Pokaż kod do zmiany';
+        btn.querySelector('span').textContent = t('btn.showCode');
     }
 }
 
@@ -738,14 +839,21 @@ function escapeHtml(str) {
 }
 
 // ── Loader ────────────────────────────────────────────────────────────────────
-function showLoader(msg = 'Analizuję kod lokalnie (Ollama)...') {
+let _lastLoaderMsg = null;
+
+function showLoader(msg = t('btn.analyzing')) {
+    _lastLoaderMsg = msg;
+    _renderLoader(msg);
+}
+
+function _renderLoader(msg) {
     document.getElementById('resultsArea').innerHTML = `
         <div class="panel">
-            <div class="panel-header"><div class="dot"></div>Wyniki analizy</div>
+            <div class="panel-header"><div class="dot"></div>${t('panel.results')}</div>
             <div class="loader active">
                 <div class="spinner"></div>
                 <div class="loader-text">${escapeHtml(msg)}</div>
-                <div style="font-size:11px;color:var(--text3)">Może zająć 1–3 min</div>
+                <div style="font-size:11px;color:var(--text3)">${t('analyzing.hint')}</div>
             </div>
         </div>`;
 }
@@ -777,8 +885,8 @@ function buildReportHTML(data) {
             const sevLabel = { Critical: 'KRYTYCZNY', Warning: 'OSTRZEŻENIE', Info: 'INFO' }[issue.severity] ?? issue.severity;
             const diff = (issue.codeBefore || issue.codeAfter) ? `
                 <div style="margin-top:10px;border-radius:6px;overflow:hidden;border:1px solid #252d42">
-                    ${issue.codeBefore ? `<div style="background:#1a0f0f;padding:4px 10px;font-size:10px;color:#f87171;font-weight:700;border-bottom:1px solid #252d42">❌ PRZED</div><pre style="margin:0;padding:10px;font-family:monospace;font-size:11px;background:#120a0a;color:#c8c8c8;overflow-x:auto;white-space:pre">${escapeHtml(stripCodeFences(issue.codeBefore))}</pre>` : ''}
-                    ${issue.codeAfter ? `<div style="background:#0a1a10;padding:4px 10px;font-size:10px;color:#34d399;font-weight:700;border-top:1px solid #252d42;border-bottom:1px solid #252d42">✅ PO</div><pre style="margin:0;padding:10px;font-family:monospace;font-size:11px;background:#080f0a;color:#c8c8c8;overflow-x:auto;white-space:pre">${escapeHtml(stripCodeFences(issue.codeAfter))}</pre>` : ''}
+                    ${issue.codeBefore ? `<div style="background:#1a0f0f;padding:4px 10px;font-size:10px;color:#f87171;font-weight:700;border-bottom:1px solid #252d42">❌ ' + t('diff.before') + '</div><pre style="margin:0;padding:10px;font-family:monospace;font-size:11px;background:#120a0a;color:#c8c8c8;overflow-x:auto;white-space:pre">${escapeHtml(stripCodeFences(issue.codeBefore))}</pre>` : ''}
+                    ${issue.codeAfter ? `<div style="background:#0a1a10;padding:4px 10px;font-size:10px;color:#34d399;font-weight:700;border-top:1px solid #252d42;border-bottom:1px solid #252d42">✅ ' + t('diff.after') + '</div><pre style="margin:0;padding:10px;font-family:monospace;font-size:11px;background:#080f0a;color:#c8c8c8;overflow-x:auto;white-space:pre">${escapeHtml(stripCodeFences(issue.codeAfter))}</pre>` : ''}
                 </div>` : '';
             return `
                 <div style="padding:14px 16px;border-top:1px solid #1e2435">
@@ -803,7 +911,7 @@ function buildReportHTML(data) {
                     </div>
                     <span style="font-family:sans-serif;font-size:14px;font-weight:800;color:${fc}">${file.score}/100</span>
                 </div>
-                ${issueRows || '<div style="padding:14px 16px;font-size:12px;color:#34d399">✓ Brak problemów.</div>'}            </div>`;
+                ${issueRows || '<div style="padding:14px 16px;font-size:12px;color:#34d399">✓ ' + t('results.noIssues') + '</div>'}            </div>`;
     }).join('');
 
     return `<!DOCTYPE html>
@@ -887,7 +995,7 @@ function exportPDF() {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-initProviders();
+loadLocale(_lang).then(() => initProviders());
 
 // Co 30s tylko aktualizuj status dostępności — NIE przeładowuj modeli
 async function pollProviderStatus() {
@@ -898,7 +1006,7 @@ async function pollProviderStatus() {
         updateProviderBtn();
     } catch {
         document.getElementById('ollamaDot').className = 'status-dot offline';
-        document.getElementById('providerBtnText').textContent = 'AI niedostępne';
+        document.getElementById('providerBtnText').textContent = t('provider.unavailable');
     }
 }
 setInterval(pollProviderStatus, 30000);
@@ -906,19 +1014,19 @@ setInterval(pollProviderStatus, 30000);
 // ── History ───────────────────────────────────────────────────────────────────
 async function loadHistory() {
     const container = document.getElementById('historyList');
-    container.innerHTML = `<div class="history-loading">Ładowanie historii...</div>`;
+    container.innerHTML = `<div class="history-loading">${t('history.loading')}</div>`;
 
     try {
         const res = await fetch(`${API}/history`);
         const data = await res.json();
 
         if (!data.length) {
-            container.innerHTML = `<div class="history-empty">📭 Brak poprzednich analiz w tej sesji.</div>`;
+            container.innerHTML = `<div class="history-empty">${t('history.empty')}</div>`;
             return;
         }
 
         container.innerHTML = data.map(item => {
-            const date = new Date(item.createdAt).toLocaleString('pl-PL');
+            const date = new Date(item.createdAt).toLocaleString(_lang === 'pl' ? 'pl-PL' : 'en-GB');
             const score = item.overallScore;
             const sc = score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--yellow)' : 'var(--red)';
             const srcIcon = item.source === 'repo' ? '📁' : '📄';
@@ -951,7 +1059,7 @@ async function loadHistory() {
             </div>`;
         }).join('');
     } catch {
-        container.innerHTML = `<div class="history-empty" style="color:var(--red)">⚠ Błąd ładowania historii.</div>`;
+        container.innerHTML = `<div class="history-empty" style="color:var(--red)">${t('history.errorLoad')}</div>`;
     }
 }
 
@@ -1007,7 +1115,7 @@ async function toggleHistoryItem(id) {
         detail.innerHTML = '';
         renderResultsInto(dto, detail);
     } catch {
-        detail.innerHTML = `<div class="history-empty" style="color:var(--red)">⚠ Nie udało się załadować analizy.</div>`;
+        detail.innerHTML = `<div class="history-empty" style="color:var(--red)">${t('history.errorDetail')}</div>`;
     }
 }
 
