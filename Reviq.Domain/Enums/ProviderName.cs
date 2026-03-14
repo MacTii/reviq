@@ -3,6 +3,7 @@
 public enum ProviderName
 {
     Ollama,
+    LocalAI,
     Claude,
     OpenAI,
     Groq,

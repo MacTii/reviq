@@ -11,11 +11,13 @@ public class AIProviderFactory : IAIProviderFactory
     private readonly IConfiguration _config;
     private readonly ILoggerFactory _loggerFactory;
     private readonly OllamaProvider _ollama;
+    private readonly LocalAIProvider _localAI;
 
     private IAIProvider _current;
 
     private static readonly ProviderMeta[] Providers =
     {
+        new(ProviderName.LocalAI,     ProviderType.Local, RequiredConfig.ModelPath),
         new(ProviderName.Ollama,      ProviderType.Local, RequiredConfig.None),
         new(ProviderName.Claude,      ProviderType.Cloud, RequiredConfig.ApiKey),
         new(ProviderName.OpenAI,      ProviderType.Cloud, RequiredConfig.ApiKey),
@@ -24,21 +26,27 @@ public class AIProviderFactory : IAIProviderFactory
         new(ProviderName.LMStudio,    ProviderType.Local, RequiredConfig.BaseUrl),
     };
 
-    public AIProviderFactory(OllamaProvider ollama, IConfiguration config, ILoggerFactory loggerFactory)
+    public AIProviderFactory(OllamaProvider ollama, LocalAIProvider localAI,
+                              IConfiguration config, ILoggerFactory loggerFactory)
     {
         _ollama = ollama;
+        _localAI = localAI;
         _config = config;
         _loggerFactory = loggerFactory;
-        _current = ollama;
+        _current = localAI; // LocalAI jako domyślny provider
     }
 
     public IAIProvider GetCurrent() => _current;
 
-    public IAIProvider GetProvider(ProviderName name) =>
-        name == ProviderName.Ollama ? _ollama : Build(name);
+    public IAIProvider GetProvider(ProviderName name) => name switch
+    {
+        ProviderName.Ollama => _ollama,
+        ProviderName.LocalAI => _localAI,
+        _ => Build(name)
+    };
 
     public void SetCurrent(ProviderName name) =>
-        _current = name == ProviderName.Ollama ? _ollama : Build(name);
+        _current = GetProvider(name);
 
     public IEnumerable<ProviderName> GetAvailableProviders() =>
         Providers.Select(p => p.Name);
@@ -48,11 +56,15 @@ public class AIProviderFactory : IAIProviderFactory
         {
             var key = _config[$"AI:{p.Name}:ApiKey"] ?? "";
             var url = _config[$"AI:{p.Name}:BaseUrl"] ?? "";
+            var modelsDir = _config["LocalAI:ModelsDir"]
+                            ?? Path.Combine(AppContext.BaseDirectory, "models");
+
             var hasConfig = p.Required switch
             {
                 RequiredConfig.None => true,
                 RequiredConfig.ApiKey => !string.IsNullOrWhiteSpace(key),
                 RequiredConfig.BaseUrl => !string.IsNullOrWhiteSpace(url),
+                RequiredConfig.ModelPath => true, // LocalAI zawsze dostępny — modele pobierane przez UI
                 _ => false
             };
             return new ProviderInfo(p.Name, p.Type, url, hasConfig);

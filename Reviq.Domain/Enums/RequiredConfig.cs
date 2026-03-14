@@ -1,3 +1,3 @@
 ﻿namespace Reviq.Domain.Enums;
 
-public enum RequiredConfig { None, ApiKey, BaseUrl }
+public enum RequiredConfig { None, ApiKey, BaseUrl, ModelPath }

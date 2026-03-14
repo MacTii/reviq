@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Reviq.API.Middleware;
 using Reviq.Application.Interfaces;
 using Reviq.Application.UseCases.GetRepoInfo;
@@ -26,7 +27,7 @@ builder.Services.AddHttpClient(); // rejestruje IHttpClientFactory
 builder.Services.AddHttpClient<OllamaProvider>(client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["Ollama:BaseUrl"] ?? "http://localhost:11434");
-    client.Timeout = TimeSpan.FromMinutes(5);
+    client.Timeout = TimeSpan.FromMinutes(15);
 });
 
 builder.Services.AddHttpClient<GitHubProvider>();
@@ -39,17 +40,21 @@ builder.Services.AddSingleton<IReviewRepository, ReviewRepository>();
 // ── AI Provider ───────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<AIProviderFactory>(sp =>
 {
-    // Tworzymy dedykowany HttpClient dla OllamaProvider w fabryce
     var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
     var ollamaClient = httpClientFactory.CreateClient("OllamaFactory");
     ollamaClient.BaseAddress = new Uri(builder.Configuration["Ollama:BaseUrl"] ?? "http://localhost:11434");
-    ollamaClient.Timeout = TimeSpan.FromMinutes(5);
+    ollamaClient.Timeout = TimeSpan.FromMinutes(15);
 
-    var logger = sp.GetRequiredService<ILogger<OllamaProvider>>();
-    var ollama = new OllamaProvider(ollamaClient, logger);
     var config = sp.GetRequiredService<IConfiguration>();
     var logFact = sp.GetRequiredService<ILoggerFactory>();
-    return new AIProviderFactory(ollama, config, logFact);
+
+    var modelsDir = config["LocalAI:ModelsDir"]
+                    ?? Path.Combine(AppContext.BaseDirectory, "Models");
+
+    var ollama = new OllamaProvider(ollamaClient, logFact.CreateLogger<OllamaProvider>());
+    var localAI = new LocalAIProvider(logFact.CreateLogger<LocalAIProvider>(), modelsDir);
+
+    return new AIProviderFactory(ollama, localAI, config, logFact);
 });
 builder.Services.AddSingleton<IAIProviderFactory>(sp => sp.GetRequiredService<AIProviderFactory>());
 builder.Services.AddSingleton<IAIProvider>(sp => sp.GetRequiredService<AIProviderFactory>().GetCurrent());

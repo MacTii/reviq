@@ -213,5 +213,69 @@
             <pre class="modal-code" id="previewModalCode"></pre>
         </div>
     </div>
+    <!-- Modal: Local AI — zarządzanie modelami -->
+    <div id="localAIModal" style="display:none" class="modal-overlay" onclick="if(event.target===this)closeLocalAIModal()">
+        <div class="modal" style="max-width:680px;width:95%">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <span class="modal-title" data-i18n="localai.title">Local AI — modele wbudowane</span>
+                </div>
+                <button class="modal-close" onclick="closeLocalAIModal()">✕</button>
+            </div>
+            <div style="padding:16px;display:flex;flex-direction:column;gap:20px;max-height:70vh;overflow-y:auto">
+
+                <!-- Zainstalowane -->
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.08em;margin-bottom:8px" data-i18n="localai.installed">ZAINSTALOWANE MODELE</div>
+                    <div id="localAIInstalled">
+                        <div style="color:var(--text3);font-size:12px" data-i18n="localai.noModels">Brak zainstalowanych modeli.</div>
+                    </div>
+                </div>
+
+                <!-- Szukaj na HuggingFace -->
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.08em;margin-bottom:8px" data-i18n="localai.hfSearch">🤗 SZUKAJ NA HUGGINGFACE</div>
+                    <div style="display:flex;gap:8px;margin-bottom:10px">
+                        <input id="hfSearchInput" type="text" class="input"
+                               data-i18n="localai.hfSearchPlaceholder" data-i18n-attr="placeholder" placeholder="np. qwen coder, deepseek coder, phi..."
+                               style="flex:1;font-size:12px"
+                               onkeydown="if(event.key==='Enter')searchHuggingFace()" />
+                        <button class="btn-sm btn-accent" onclick="searchHuggingFace()" data-i18n="localai.hfSearchBtn">🔍 Szukaj</button>
+                    </div>
+                    <div id="hfSearchResults" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto"></div>
+                    <!-- Panel plików wybranego repo -->
+                    <div id="hfRepoFiles" style="display:none;margin-top:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                            <span id="hfRepoName" style="font-size:12px;font-family:var(--mono);color:var(--accent)"></span>
+                            <button class="btn-sm" onclick="closeHfRepoFiles()" data-i18n="localai.closeFiles">✕ Zamknij</button>
+                        </div>
+                        <div id="hfFilesList" style="display:flex;flex-direction:column;gap:4px"></div>
+                    </div>
+                </div>
+
+                <!-- Polecane do pobrania -->
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.08em;margin-bottom:8px" data-i18n="localai.recommended">POLECANE MODELE</div>
+                    <div id="localAIRecommended" style="display:flex;flex-direction:column;gap:8px">
+                        <div style="color:var(--text3);font-size:12px" data-i18n="localai.loading">Ładowanie...</div>
+                    </div>
+                </div>
+
+                <!-- Własna ścieżka -->
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.08em;margin-bottom:8px" data-i18n="localai.customModel">WŁASNY MODEL (.gguf)</div>
+                    <div id="localAIModelsDir" style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:8px;padding:4px 8px;background:var(--surface2);border-radius:4px;word-break:break-all">📁 Folder modeli: ładowanie...</div>
+                    <div style="display:flex;gap:8px">
+                        <input id="localAICustomPath" type="text" class="input"
+                               data-i18n="localai.customPlaceholder" data-i18n-attr="placeholder" placeholder="C:\models\moj-model.gguf lub nazwa-pliku.gguf"
+                               style="flex:1;font-size:12px" />
+                        <button class="btn-sm btn-accent" onclick="setLocalAICustomModel()" data-i18n="localai.use">Użyj</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>

@@ -15,4 +15,8 @@
     <ProjectReference Include="..\Reviq.Infrastructure\Reviq.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Models\" />
+  </ItemGroup>
+
 </Project>

@@ -516,6 +516,35 @@ input, select {
         color: var(--text);
     }
 
+.btn-sm {
+    padding: 5px 12px;
+    font-size: 11px;
+    font-family: var(--mono);
+    border-radius: 5px;
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    color: var(--text2);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color .15s, color .15s;
+}
+
+    .btn-sm:hover {
+        border-color: var(--accent);
+        color: var(--text);
+    }
+
+    .btn-sm.btn-accent {
+        background: rgba(79,142,247,.12);
+        border-color: rgba(79,142,247,.4);
+        color: var(--accent);
+    }
+
+        .btn-sm.btn-accent:hover {
+            background: rgba(79,142,247,.22);
+            border-color: var(--accent);
+        }
+
 /* ── Code editor ── */
 .code-editor-wrap {
     position: relative;
