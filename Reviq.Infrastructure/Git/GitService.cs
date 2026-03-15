@@ -1,4 +1,4 @@
-﻿using Reviq.Domain.Entities;
+using Reviq.Domain.Entities;
 using Reviq.Domain.Enums;
 using Reviq.Domain.Interfaces;
 using System.Diagnostics;
@@ -11,7 +11,7 @@ public class GitService : IGitProvider
     private static readonly HashSet<string> BinaryExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".exe", ".dll", ".pdb", ".obj", ".bin", ".dat", ".db", ".sqlite",
-        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".webp",
+        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg", ".webp",
         ".zip", ".tar", ".gz", ".rar", ".7z",
         ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
         ".mp3", ".mp4", ".avi", ".mov", ".wav",
@@ -22,7 +22,7 @@ public class GitService : IGitProvider
     public async Task<RepoInfo> GetRepoInfoAsync(string repoPath, DiffScope scope = DiffScope.LastCommit, string? commitHash = null)
     {
         if (!Directory.Exists(repoPath) || !Directory.Exists(Path.Combine(repoPath, ".git")))
-            return new RepoInfo { Error = "Podana ścieżka nie jest repozytorium Git." };
+            return RepoInfo.Invalid("Podana ścieżka nie jest repozytorium Git.");
 
         var branch = await RunGitAsync(repoPath, "rev-parse --abbrev-ref HEAD");
         var latestCommit = await RunGitAsync(repoPath, "rev-parse --short HEAD");
@@ -57,14 +57,7 @@ public class GitService : IGitProvider
             .Take(50)
             .ToList();
 
-        return new RepoInfo
-        {
-            IsValid = true,
-            Branch = branch,
-            LatestCommit = latestCommit,
-            CommitMessage = commitMessage,
-            ChangedFiles = changedFiles
-        };
+        return RepoInfo.Valid(branch, latestCommit, commitMessage, changedFiles);
     }
 
     private async Task<string> GetSinceLastPushAsync(string repoPath, string branch)

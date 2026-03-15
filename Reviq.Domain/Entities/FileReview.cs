@@ -1,10 +1,17 @@
-﻿namespace Reviq.Domain.Entities;
+namespace Reviq.Domain.Entities;
 
-public class FileReview
+public sealed class FileReview
 {
-    public string FilePath { get; set; } = "";
-    public string Language { get; set; } = "";
-    public List<ReviewIssue> Issues { get; set; } = new();
-    public int Score { get; set; }
-}
+    public string FilePath { get; }
+    public string Language { get; }
+    public int Score { get; }
+    public IReadOnlyList<ReviewIssue> Issues { get; }
 
+    public FileReview(string filePath, string language, int score, IReadOnlyList<ReviewIssue> issues)
+    {
+        FilePath = filePath;
+        Language = language;
+        Score = score;
+        Issues = issues;
+    }
+}

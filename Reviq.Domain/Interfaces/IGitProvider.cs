@@ -1,4 +1,4 @@
-﻿using Reviq.Domain.Entities;
+using Reviq.Domain.Entities;
 using Reviq.Domain.Enums;
 
 namespace Reviq.Domain.Interfaces;

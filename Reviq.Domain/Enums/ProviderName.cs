@@ -1,4 +1,4 @@
-﻿namespace Reviq.Domain.Enums;
+namespace Reviq.Domain.Enums;
 
 public enum ProviderName
 {

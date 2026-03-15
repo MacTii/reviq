@@ -1,25 +1,29 @@
-﻿using System.Net.Http.Headers;
-using System.Net.Http.Json;
-using System.Text.Json;
+﻿using Microsoft.Extensions.Options;
 using Reviq.Domain.Entities;
 using Reviq.Domain.Interfaces;
+using Reviq.Infrastructure.Configuration;
+using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace Reviq.Infrastructure.Git;
 
-public class GitLabProvider(HttpClient httpClient) : IGitHostProvider
+public sealed class GitLabProvider(HttpClient httpClient, IOptions<GitOptions> options)
+    : IGitHostProvider
 {
-    public async Task PostReviewCommentAsync(string repoFullName, int prNumber, string body, string token)
+    private readonly GitOptions _opts = options.Value;
+
+    public async Task PostReviewCommentAsync(
+        string repoFullName, int prNumber, string body, string token)
     {
         SetAuth(token);
-        // repoFullName = "group/project" → URL encode
         var encoded = Uri.EscapeDataString(repoFullName);
-        var payload = new { body };
         await httpClient.PostAsJsonAsync(
-            $"https://gitlab.com/api/v4/projects/{encoded}/merge_requests/{prNumber}/notes",
-            payload);
+            $"{_opts.GitLab.BaseUrl}/projects/{encoded}/merge_requests/{prNumber}/notes",
+            new { body });
     }
 
-    public async Task SetCommitStatusAsync(string repoFullName, string commitSha, bool success, string description, string token)
+    public async Task SetCommitStatusAsync(
+        string repoFullName, string commitSha, bool success, string description, string token)
     {
         SetAuth(token);
         var encoded = Uri.EscapeDataString(repoFullName);
@@ -27,31 +31,32 @@ public class GitLabProvider(HttpClient httpClient) : IGitHostProvider
         {
             state = success ? "success" : "failed",
             description,
-            name = "Reviq / AI Code Review"
+            name = _opts.StatusContext
         };
         await httpClient.PostAsJsonAsync(
-            $"https://gitlab.com/api/v4/projects/{encoded}/statuses/{commitSha}",
+            $"{_opts.GitLab.BaseUrl}/projects/{encoded}/statuses/{commitSha}",
             payload);
     }
 
-    public async Task<List<PrFile>> GetPrFilesAsync(string repoFullName, int prNumber, string token)
+    public async Task<List<PrFile>> GetPrFilesAsync(
+        string repoFullName, int prNumber, string token)
     {
         SetAuth(token);
         var encoded = Uri.EscapeDataString(repoFullName);
         var response = await httpClient.GetAsync(
-            $"https://gitlab.com/api/v4/projects/{encoded}/merge_requests/{prNumber}/diffs");
+            $"{_opts.GitLab.BaseUrl}/projects/{encoded}/merge_requests/{prNumber}/diffs");
 
         if (!response.IsSuccessStatusCode) return new();
 
         var json = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(json);
 
-        return doc.RootElement.EnumerateArray().Select(f => new PrFile
-        {
-            FileName = f.TryGetProperty("new_path", out var fn) ? fn.GetString() ?? "" : "",
-            Patch = f.TryGetProperty("diff", out var p) ? p.GetString() ?? "" : "",
-            Status = f.TryGetProperty("new_file", out var nf) && nf.GetBoolean() ? "added" : "modified"
-        }).ToList();
+        return doc.RootElement.EnumerateArray().Select(f => new PrFile(
+            FileName: f.TryGetProperty("new_path", out var fn) ? fn.GetString() ?? "" : "",
+            Patch: f.TryGetProperty("diff", out var p) ? p.GetString() ?? "" : "",
+            RawUrl: "",
+            Status: f.TryGetProperty("new_file", out var nf) && nf.GetBoolean() ? "added" : "modified"
+        )).ToList();
     }
 
     private void SetAuth(string token)

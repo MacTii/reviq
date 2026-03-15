@@ -1,17 +1,19 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Reviq.Domain.Interfaces;
+﻿using Mediator;
+using Microsoft.AspNetCore.Mvc;
+using Reviq.Application.Features.Reviews.Queries;
 
 namespace Reviq.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class HistoryController(IReviewRepository repository) : ControllerBase
+public sealed class HistoryController(IMediator mediator) : ControllerBase
 {
-    /// <summary>GET /api/history?limit=20</summary>
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] int limit = 50)
+    public async Task<IActionResult> GetAll(
+        [FromQuery] int limit = 50,
+        CancellationToken ct = default)
     {
-        var results = await repository.GetAllAsync(limit);
+        var results = await mediator.Send(new GetAllReviewsQuery(limit), ct);
         var items = results.Select(r => new
         {
             r.ReviewId,
@@ -27,12 +29,12 @@ public class HistoryController(IReviewRepository repository) : ControllerBase
         return Ok(items);
     }
 
-    /// <summary>GET /api/history/{id}</summary>
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetById(string id)
+    public async Task<IActionResult> GetById(
+        string id,
+        CancellationToken ct = default)
     {
-        var result = await repository.GetByIdAsync(id);
-        if (result is null) return NotFound();
-        return Ok(result);
+        var result = await mediator.Send(new GetReviewByIdQuery(id), ct);
+        return result is null ? NotFound() : Ok(result);
     }
 }
