@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Reviq.Application.Interfaces;
 using Reviq.API.Requests;
+using Reviq.Application.Interfaces;
 using Reviq.Domain.Enums;
 
 namespace Reviq.API.Controllers;

@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Options;
 using Reviq.Infrastructure.Configuration;
 using Reviq.Infrastructure.LocalAI.Models;

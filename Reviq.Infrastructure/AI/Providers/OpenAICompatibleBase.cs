@@ -1,9 +1,7 @@
-using Reviq.Infrastructure.AI;
+using Microsoft.Extensions.Logging;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
-using Reviq.Domain.Enums;
 namespace Reviq.Infrastructure.AI.Providers;
 
 /// <summary>

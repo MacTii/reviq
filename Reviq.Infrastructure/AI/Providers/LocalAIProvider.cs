@@ -1,11 +1,10 @@
-using Microsoft.Extensions.Options;
-using Reviq.Infrastructure.Configuration;
-using Reviq.Infrastructure.AI;
 using LLama;
 using LLama.Common;
 using LLama.Sampling;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Reviq.Domain.Enums;
+using Reviq.Infrastructure.Configuration;
 
 namespace Reviq.Infrastructure.AI.Providers;
 

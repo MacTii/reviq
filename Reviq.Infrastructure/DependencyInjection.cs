@@ -74,23 +74,28 @@ public static class DependencyInjection
         // Każdy provider rejestrowany jako IAIProvider - DI zbiera je w IEnumerable<IAIProvider>
         services.AddSingleton<IAIProvider, LocalAIProvider>();
         services.AddSingleton<IAIProvider, OllamaProvider>();
-        services.AddSingleton<IAIProvider>(sp => {
+        services.AddSingleton<IAIProvider>(sp =>
+        {
             var (http, log, opts) = CloudProviderDeps<ClaudeProvider>(sp);
             return new ClaudeProvider(http, log, opts.Claude);
         });
-        services.AddSingleton<IAIProvider>(sp => {
+        services.AddSingleton<IAIProvider>(sp =>
+        {
             var (http, log, opts) = CloudProviderDeps<OpenAIProvider>(sp);
             return new OpenAIProvider(http, log, opts.OpenAI);
         });
-        services.AddSingleton<IAIProvider>(sp => {
+        services.AddSingleton<IAIProvider>(sp =>
+        {
             var (http, log, opts) = CloudProviderDeps<GroqProvider>(sp);
             return new GroqProvider(http, log, opts.Groq);
         });
-        services.AddSingleton<IAIProvider>(sp => {
+        services.AddSingleton<IAIProvider>(sp =>
+        {
             var (http, log, opts) = CloudProviderDeps<OpenRouterProvider>(sp);
             return new OpenRouterProvider(http, log, opts.OpenRouter);
         });
-        services.AddSingleton<IAIProvider>(sp => {
+        services.AddSingleton<IAIProvider>(sp =>
+        {
             var (http, log, opts) = CloudProviderDeps<LMStudioProvider>(sp);
             return new LMStudioProvider(http, log, opts.LMStudio);
         });

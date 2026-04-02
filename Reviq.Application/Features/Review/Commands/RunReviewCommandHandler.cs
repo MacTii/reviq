@@ -4,7 +4,6 @@ using Reviq.Application.Common;
 using Reviq.Application.DTOs;
 using Reviq.Application.Interfaces;
 using Reviq.Domain.Entities;
-using Reviq.Domain.Enums;
 using Reviq.Domain.Interfaces;
 
 namespace Reviq.Application.Features.Reviews.Commands;
