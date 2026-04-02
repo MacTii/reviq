@@ -25,4 +25,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 loadLocale(_lang).then(() => initProviders());
 
-setInterval(pollProviderStatus, 30000);
+document.addEventListener('DOMContentLoaded', () => {
+    setInterval(pollProviderStatus, 30000);
+});

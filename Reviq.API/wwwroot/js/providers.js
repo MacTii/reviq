@@ -1,52 +1,48 @@
-﻿// ── Providers & Models ──────────────────────────────────────────────────────
-// ── Provider & model management ───────────────────────────────────────────────
+﻿// ── Providers & Models ────────────────────────────────────────────────────────
 let currentProvider = 'Ollama';
 let currentModel = '';
-let _lastRepoInfo = null; // cache dla odświeżenia po zmianie języka
+let _lastRepoInfo = null;
 
 async function initProviders() {
     try {
         const r = await fetch(`${API}/ai/providers`);
         const d = await r.json();
 
-        // Logika wyboru domyślnego providera
-        const serverProvider = d.currentProvider ?? 'Ollama';
+        currentProvider = d.currentProvider ?? 'LocalAI';
+        currentModel = d.currentModel ?? '';
 
-        // Sprawdź czy LocalAI ma zainstalowane modele
-        const localAIModels = await fetch(`${API}/localai/models`)
-            .then(r => r.json()).catch(() => ({ models: [] }));
-        const hasLocalAIModels = localAIModels.models?.length > 0;
+        // Sprawdź dostępność wszystkich providerów równolegle (nie sekwencyjnie)
+        const statusResults = await Promise.allSettled(
+            d.providers.map(p => {
+                // LocalAI jest zawsze dostępny - nie wymaga sprawdzania
+                if (p.name === 'LocalAI')
+                    return Promise.resolve({ name: p.name, available: true, hasConfig: true });
+                return fetch(`${API}/ai/providers/${p.name}/status`)
+                    .then(r => r.json())
+                    .then(s => ({ name: p.name, available: s.available, hasConfig: p.hasConfig }))
+                    .catch(() => ({ name: p.name, available: false, hasConfig: p.hasConfig }));
+            })
+        );
 
-        if (hasLocalAIModels) {
-            // LocalAI ma modele — ustaw jako aktywny z pierwszym modelem
-            const firstModel = localAIModels.models[0].fileName;
-            if (serverProvider !== 'LocalAI') {
-                await fetch(`${API}/ai/provider`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ provider: 'LocalAI', model: firstModel })
-                });
-            }
-            currentProvider = 'LocalAI';
-            currentModel = d.currentProvider === 'LocalAI' ? (d.currentModel ?? firstModel) : firstModel;
-        } else if (serverProvider === 'LocalAI') {
-            // LocalAI wybrany ale brak modeli — pokaż onboarding modal
-            currentProvider = 'LocalAI';
-            currentModel = '';
-            setTimeout(() => openLocalAIModal(), 800);
-        } else {
-            currentProvider = serverProvider;
-            currentModel = d.currentModel ?? '';
-        }
+        // Połącz wyniki statusów z listą providerów
+        const providersWithStatus = d.providers.map(p => {
+            const result = statusResults
+                .find(r => r.status === 'fulfilled' && r.value.name === p.name);
+            const available = result?.value?.available ?? false;
+            return { ...p, available };
+        });
 
-        renderProviderMenu(d.providers);
+        renderProviderMenu(providersWithStatus);
         updateProviderBtn();
         await loadModelsForProvider(currentProvider, currentModel);
 
-        // Jeśli żaden provider nie jest dostępny i brak modeli LocalAI — pokaż onboarding
-        if (!hasLocalAIModels && !d.providers?.find(p => p.available && p.name !== 'LocalAI')) {
+        // LocalAI bez modeli — pokaż onboarding
+        const localAI = providersWithStatus.find(p => p.name === 'LocalAI');
+        const hasOtherAvailable = providersWithStatus.some(p => p.name !== 'LocalAI' && p.available);
+        if (localAI && !localAI.available && currentProvider === 'LocalAI' && !hasOtherAvailable) {
             setTimeout(() => openLocalAIModal(), 800);
         }
+
     } catch {
         document.getElementById('ollamaDot').className = 'status-dot offline';
         document.getElementById('providerBtnText').textContent = t('provider.unavailable');
@@ -60,6 +56,7 @@ function renderProviderMenu(providers) {
         const isActive = p.name === currentProvider;
         const unavail = !p.available;
         return `<div class="provider-menu-item ${isActive ? 'active' : ''} ${unavail ? 'unavailable' : ''}"
+                     data-name="${p.name}"
                      onclick="selectProvider('${p.name}', ${p.available})">
             <div class="provider-item-left">
                 <div class="provider-item-dot ${dotClass}"></div>
@@ -73,46 +70,65 @@ function renderProviderMenu(providers) {
 function updateProviderBtn() {
     const dot = document.getElementById('ollamaDot');
     const btn = document.getElementById('providerBtnText');
+    const activeItem = document.querySelector('.provider-menu-item.active');
 
-    const activeLabel = document.querySelector('.provider-menu-item.active .provider-item-name');
-    btn.textContent = activeLabel ? activeLabel.textContent : currentProvider;
+    btn.textContent = activeItem
+        ? activeItem.querySelector('.provider-item-name').textContent
+        : currentProvider;
 
-    const activeDot = document.querySelector('.provider-menu-item.active .provider-item-dot');
-    dot.className = 'status-dot ' + (activeDot?.classList.contains('online') ? 'online' : 'offline');
+    const activeDot = activeItem?.querySelector('.provider-item-dot');
+    if (dot && activeDot)
+        dot.className = activeDot.className.replace('provider-item-dot', 'status-dot');
 }
 
 function toggleProviderMenu() {
     const menu = document.getElementById('providerMenu');
-    if (!menu.innerHTML.trim()) return; // nie otwieraj gdy puste (ładowanie)
+    if (!menu.innerHTML.trim()) return;
     menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
 }
+
+function closeProviderMenu() {
+    document.getElementById('providerMenu').style.display = 'none';
+}
+
+document.addEventListener('click', e => {
+    if (!e.target.closest('.provider-dropdown')) closeProviderMenu();
+});
 
 async function selectProvider(name, available) {
     if (!available) return;
     closeProviderMenu();
 
-    // LocalAI — otwórz modal zarządzania modelami
+    // LocalAI — jeśli brak modeli otwórz modal, ale i tak przełącz provider
     if (name === 'LocalAI') {
-        openLocalAIModal();
-        return;
+        const installed = await fetch(`${API}/localai/Models`)
+            .then(r => r.json()).catch(() => ({ models: [] }));
+        if (!installed.models?.length) {
+            openLocalAIModal();
+            return;
+        }
     }
 
-    await fetch(`${API}/ai/provider`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: name })
-    });
+    try {
+        const r = await fetch(`${API}/ai/provider`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider: name })
+        });
+        const d = await r.json();
 
-    currentProvider = name;
+        currentProvider = d.provider;
+        currentModel = d.model ?? '';
 
-    // Odśwież menu
-    const r = await fetch(`${API}/ai/providers`);
-    const d = await r.json();
-    renderProviderMenu(d.providers);
-    updateProviderBtn();
+        document.querySelectorAll('.provider-menu-item').forEach(el =>
+            el.classList.toggle('active', el.dataset.name === name));
+        updateProviderBtn();
+        await loadModelsForProvider(name, currentModel);
 
-    // Załaduj modele dla nowego providera
-    await loadModelsForProvider(name);
+    } catch (e) {
+        console.error('selectProvider failed:', e);
+        showError(t('error.providerSwitch') ?? 'Failed to switch provider.');
+    }
 }
 
 async function loadModelsForProvider(providerName, activeModel = '') {
@@ -121,7 +137,7 @@ async function loadModelsForProvider(providerName, activeModel = '') {
 
     ['snippetModel', 'modelSelect'].forEach(id => {
         const sel = document.getElementById(id);
-        if (sel) sel.innerHTML = '<option value="">' + t('model.loading') + '</option>';
+        if (sel) sel.innerHTML = `<option value="">${t('model.loading')}</option>`;
     });
     ['snippetModelBadge', 'repoModelBadge'].forEach(id => {
         const el = document.getElementById(id);
@@ -133,38 +149,48 @@ async function loadModelsForProvider(providerName, activeModel = '') {
         const d = await r.json();
         const models = d.models ?? [];
 
-        // Zachowaj model aktualnie wybrany przez użytkownika (jeśli istnieje)
-        const userSelected = (() => {
-            const sel = document.getElementById('snippetModel');
-            return sel && sel.value ? sel.value : null;
-        })();
-        const modelToSelect = userSelected && models.includes(userSelected)
-            ? userSelected
-            : (activeModel && models.includes(activeModel) ? activeModel : models[0] ?? '');
+        const modelToSelect = activeModel && models.includes(activeModel)
+            ? activeModel
+            : models[0] ?? '';
 
         const opts = models.length
-            ? models.map(m => `<option value="${m}" ${m === modelToSelect ? 'selected' : ''}>${m}</option>`).join('')
-            : providerName === 'LocalAI'
-                ? `<option value="">${t('localai.noModels')}</option>`
-                : `<option value="">${t('model.none')}</option>`;
+            ? models.map(m =>
+                `<option value="${m}" ${m === modelToSelect ? 'selected' : ''}>${m}</option>`
+            ).join('')
+            : `<option value="">${t('model.none')}</option>`;
 
         ['snippetModel', 'modelSelect'].forEach(id => {
             const sel = document.getElementById(id);
             if (sel) sel.innerHTML = opts;
         });
+
+        if (modelToSelect) currentModel = modelToSelect;
+
     } catch {
         ['snippetModel', 'modelSelect'].forEach(id => {
             const sel = document.getElementById(id);
-            if (sel) sel.innerHTML = '<option value="">' + t('model.error') + '</option>';
+            if (sel) sel.innerHTML = `<option value="">${t('model.error')}</option>`;
         });
     }
 }
 
-function closeProviderMenu() {
-    document.getElementById('providerMenu').style.display = 'none';
+async function syncModelBeforeReview() {
+    const select = document.getElementById('modelSelect');
+    if (!select?.value || select.value === currentModel) return;
+    await fetch(`${API}/ai/model`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: select.value })
+    });
+    currentModel = select.value;
 }
 
-// Zamknij menu po kliknięciu poza nim
-document.addEventListener('click', e => {
-    if (!e.target.closest('.provider-dropdown')) closeProviderMenu();
-});
+async function pollProviderStatus() {
+    try {
+        const r = await fetch(`${API}/ai/providers/${currentProvider}/status`);
+        if (!r.ok) return;
+        const d = await r.json();
+        const dot = document.getElementById('ollamaDot');
+        if (dot) dot.className = `status-dot ${d.available ? 'online' : 'offline'}`;
+    } catch { /* ignore */ }
+}
