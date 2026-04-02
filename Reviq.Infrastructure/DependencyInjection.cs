@@ -29,6 +29,8 @@ public static class DependencyInjection
         return services;
     }
 
+    // ── OPTIONS ────────────────────────────────────────────────────────────────
+
     private static IServiceCollection AddOptions(
         this IServiceCollection services, IConfiguration configuration)
     {
@@ -40,26 +42,40 @@ public static class DependencyInjection
         return services;
     }
 
+    // ── HTTP CLIENTS ───────────────────────────────────────────────────────────
+
     private static IServiceCollection AddHttpClients(this IServiceCollection services)
     {
         services.AddHttpClient();
-        services.AddHttpClient<OllamaProvider>();
+
+        // ✅ Konfiguracja dla Ollama (BaseAddress!)
+        services.AddHttpClient(nameof(OllamaProvider), (sp, client) =>
+        {
+            var opts = sp.GetRequiredService<IOptions<OllamaOptions>>().Value;
+            client.BaseAddress = new Uri(opts.BaseUrl);
+        });
+
         services.AddHttpClient<GitHubProvider>();
         services.AddHttpClient<GitLabProvider>();
+
         services.AddHttpClient("HuggingFace", (sp, client) =>
         {
             var opts = sp.GetRequiredService<IOptions<HuggingFaceOptions>>().Value;
             client.DefaultRequestHeaders.Add("User-Agent", opts.UserAgent);
             client.Timeout = TimeSpan.FromSeconds(opts.SearchTimeoutSeconds);
         });
+
         services.AddHttpClient("HuggingFaceDownload", (sp, client) =>
         {
             var opts = sp.GetRequiredService<IOptions<HuggingFaceOptions>>().Value;
             client.DefaultRequestHeaders.Add("User-Agent", opts.UserAgent);
             client.Timeout = TimeSpan.FromHours(opts.DownloadTimeoutHours);
         });
+
         return services;
     }
+
+    // ── REPOSITORIES ───────────────────────────────────────────────────────────
 
     private static IServiceCollection AddRepositories(this IServiceCollection services)
     {
@@ -69,42 +85,63 @@ public static class DependencyInjection
         return services;
     }
 
+    // ── AI PROVIDERS ───────────────────────────────────────────────────────────
+
     private static IServiceCollection AddAIProviders(this IServiceCollection services)
     {
-        // Każdy provider rejestrowany jako IAIProvider - DI zbiera je w IEnumerable<IAIProvider>
+        // LocalAI
         services.AddSingleton<IAIProvider, LocalAIProvider>();
-        services.AddSingleton<IAIProvider, OllamaProvider>();
+
+        // ✅ FIX: Ollama przez HttpClientFactory (żeby BaseAddress działał)
+        services.AddSingleton<IAIProvider>(sp =>
+        {
+            var http = sp.GetRequiredService<IHttpClientFactory>()
+                         .CreateClient(nameof(OllamaProvider));
+
+            var logger = sp.GetRequiredService<ILogger<OllamaProvider>>();
+            var options = sp.GetRequiredService<IOptions<OllamaOptions>>();
+
+            return new OllamaProvider(http, logger, options);
+        });
+
+        // Cloud providers
         services.AddSingleton<IAIProvider>(sp =>
         {
             var (http, log, opts) = CloudProviderDeps<ClaudeProvider>(sp);
             return new ClaudeProvider(http, log, opts.Claude);
         });
+
         services.AddSingleton<IAIProvider>(sp =>
         {
             var (http, log, opts) = CloudProviderDeps<OpenAIProvider>(sp);
             return new OpenAIProvider(http, log, opts.OpenAI);
         });
+
         services.AddSingleton<IAIProvider>(sp =>
         {
             var (http, log, opts) = CloudProviderDeps<GroqProvider>(sp);
             return new GroqProvider(http, log, opts.Groq);
         });
+
         services.AddSingleton<IAIProvider>(sp =>
         {
             var (http, log, opts) = CloudProviderDeps<OpenRouterProvider>(sp);
             return new OpenRouterProvider(http, log, opts.OpenRouter);
         });
+
         services.AddSingleton<IAIProvider>(sp =>
         {
             var (http, log, opts) = CloudProviderDeps<LMStudioProvider>(sp);
             return new LMStudioProvider(http, log, opts.LMStudio);
         });
 
+        // Factory
         services.AddSingleton<AIProviderFactory>(sp => new AIProviderFactory(
             sp.GetRequiredService<IEnumerable<IAIProvider>>(),
             sp.GetRequiredService<IOptions<AIProviderOptions>>().Value));
 
         services.AddSingleton<IAIProviderFactory>(sp => sp.GetRequiredService<AIProviderFactory>());
+
         return services;
     }
 
@@ -115,6 +152,8 @@ public static class DependencyInjection
             sp.GetRequiredService<ILoggerFactory>().CreateLogger<T>(),
             sp.GetRequiredService<IOptions<AIProviderOptions>>().Value
         );
+
+    // ── LOCAL AI ───────────────────────────────────────────────────────────────
 
     private static IServiceCollection AddLocalAI(this IServiceCollection services)
     {
