@@ -1,5 +1,5 @@
 ﻿// ── Providers & Models ────────────────────────────────────────────────────────
-let currentProvider = 'Ollama';
+let currentProvider = 'LocalAI';
 let currentModel = '';
 let _lastRepoInfo = null;
 
@@ -11,10 +11,9 @@ async function initProviders() {
         currentProvider = d.currentProvider ?? 'LocalAI';
         currentModel = d.currentModel ?? '';
 
-        // Sprawdź dostępność wszystkich providerów równolegle (nie sekwencyjnie)
+        // Sprawdź dostępność wszystkich providerów równolegle
         const statusResults = await Promise.allSettled(
             d.providers.map(p => {
-                // LocalAI jest zawsze dostępny - nie wymaga sprawdzania
                 if (p.name === 'LocalAI')
                     return Promise.resolve({ name: p.name, available: true, hasConfig: true });
                 return fetch(`${API}/ai/providers/${p.name}/status`)
@@ -24,29 +23,31 @@ async function initProviders() {
             })
         );
 
-        // Połącz wyniki statusów z listą providerów
         const providersWithStatus = d.providers.map(p => {
-            const result = statusResults
-                .find(r => r.status === 'fulfilled' && r.value.name === p.name);
+            const result = statusResults.find(r => r.status === 'fulfilled' && r.value.name === p.name);
             const available = result?.value?.available ?? false;
             return { ...p, available };
         });
 
         renderProviderMenu(providersWithStatus);
         updateProviderBtn();
-        await loadModelsForProvider(currentProvider, currentModel);
 
-        // LocalAI bez modeli — pokaż onboarding
-        const localAI = providersWithStatus.find(p => p.name === 'LocalAI');
-        const hasOtherAvailable = providersWithStatus.some(p => p.name !== 'LocalAI' && p.available);
-        if (localAI && !localAI.available && currentProvider === 'LocalAI' && !hasOtherAvailable) {
-            setTimeout(() => openLocalAIModal(), 800);
-        }
+        // Załaduj modele i sprawdź czy otworzyć modal
+        await loadModelsForProvider(currentProvider, currentModel);
+        _checkLocalAIModal();
 
     } catch {
         document.getElementById('ollamaDot').className = 'status-dot offline';
         document.getElementById('providerBtnText').textContent = t('provider.unavailable');
     }
+}
+
+function _checkLocalAIModal() {
+    if (currentProvider !== 'LocalAI') return;
+    // Sprawdź czy modelSelect ma jakieś realne opcje
+    const sel = document.getElementById('modelSelect') || document.getElementById('snippetModel');
+    const hasModels = sel && sel.options.length > 0 && sel.options[0].value !== '';
+    if (!hasModels) setTimeout(() => openLocalAIModal(), 300);
 }
 
 function renderProviderMenu(providers) {
@@ -99,16 +100,6 @@ async function selectProvider(name, available) {
     if (!available) return;
     closeProviderMenu();
 
-    // LocalAI — jeśli brak modeli otwórz modal, ale i tak przełącz provider
-    if (name === 'LocalAI') {
-        const installed = await fetch(`${API}/localai/Models`)
-            .then(r => r.json()).catch(() => ({ models: [] }));
-        if (!installed.models?.length) {
-            openLocalAIModal();
-            return;
-        }
-    }
-
     try {
         const r = await fetch(`${API}/ai/provider`, {
             method: 'POST',
@@ -124,6 +115,7 @@ async function selectProvider(name, available) {
             el.classList.toggle('active', el.dataset.name === name));
         updateProviderBtn();
         await loadModelsForProvider(name, currentModel);
+        _checkLocalAIModal();
 
     } catch (e) {
         console.error('selectProvider failed:', e);
