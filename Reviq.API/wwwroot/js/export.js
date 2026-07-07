@@ -1,4 +1,8 @@
-﻿// ── Export ───────────────────────────────────────────────────────────────────
+// ── Export ───────────────────────────────────────────────────────────────────
+import { t } from './i18n.js';
+import { escapeHtml, stripCodeFences } from './utils.js';
+import { _lastResults, _ignoredIssues } from './results.js';
+
 function buildReportHTML(data) {
     // Użyj aktywnych (niezignorowanych) issues do raportu
     const allActive = data.files.flatMap((f, fIdx) =>
@@ -128,4 +132,5 @@ function exportPDF() {
     setTimeout(() => { win.print(); }, 500);
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+window.exportHTML = exportHTML;
+window.exportPDF = exportPDF;

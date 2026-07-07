@@ -1,4 +1,10 @@
-﻿// ── Local AI ─────────────────────────────────────────────────────────────────
+// ── Local AI ─────────────────────────────────────────────────────────────────
+import { API } from './api.js';
+import { t } from './i18n.js';
+import { escapeHtml, formatBytes } from './utils.js';
+import { renderProviderMenu, updateProviderBtn, loadModelsForProvider, initProviders } from './providers.js';
+import { currentProvider, currentModel, setCurrentProvider, setCurrentModel } from './providerState.js';
+
 // ── HuggingFace Search ────────────────────────────────────────────────────────
 async function searchHuggingFace() {
     const q = document.getElementById('hfSearchInput').value.trim() || 'coder gguf';
@@ -18,14 +24,12 @@ async function searchHuggingFace() {
         }
 
         results.innerHTML = data.map(m => `
-            <div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 12px;cursor:pointer;transition:border-color .15s"
-                 onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'"
-                 onclick="loadHfRepoFiles('${escapeHtml(m.id)}')">
-                <div style="flex:1;min-width:0">
-                    <div style="font-size:12px;font-family:var(--mono);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(m.id)}</div>
-                    <div style="font-size:10px;color:var(--text3);margin-top:2px" class="hf-downloads" data-downloads="${m.downloads || 0}" data-likes="${m.likes || 0}">⬇ ${(m.downloads || 0).toLocaleString()} ${t('localai.hfDownloads')} · ❤ ${m.likes || 0}</div>
+            <div class="hf-result-row" onclick="loadHfRepoFiles('${escapeHtml(m.id)}')">
+                <div class="hf-result-info">
+                    <div class="hf-result-id">${escapeHtml(m.id)}</div>
+                    <div class="hf-downloads" data-downloads="${m.downloads || 0}" data-likes="${m.likes || 0}">⬇ ${(m.downloads || 0).toLocaleString()} ${t('localai.hfDownloads')} · ❤ ${m.likes || 0}</div>
                 </div>
-                <span style="font-size:10px;color:var(--accent)" class="hf-files-link">${t('localai.hfFiles')}</span>
+                <span class="hf-files-link">${t('localai.hfFiles')}</span>
             </div>`).join('');
     } catch {
         results.innerHTML = `<div style="color:var(--red);font-size:12px">${t('localai.hfSearchError')}</div>`;
@@ -57,26 +61,24 @@ async function loadHfRepoFiles(repo) {
             const isDownloading = !!_localAIDownloadPollers[baseName];
             const sizeStr = f.sizeMb > 0 ? Math.round(f.sizeMb) + ' MB' : '?';
             return `
-            <div id="hf-row-${id}" style="padding:6px 8px;border-radius:5px;background:var(--surface3);margin-bottom:4px">
-                <div style="display:flex;align-items:center;gap:8px">
-                    <div style="flex:1;min-width:0">
-                        <div style="font-size:11px;font-family:var(--mono);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(f.fileName)}">${escapeHtml(baseName)}</div>
-                        <div style="font-size:10px;color:var(--text3)">${sizeStr}</div>
+            <div id="hf-row-${id}" class="hf-file-row">
+                <div class="hf-file-row-main">
+                    <div class="hf-file-info">
+                        <div class="hf-file-name" title="${escapeHtml(f.fileName)}">${escapeHtml(baseName)}</div>
+                        <div class="hf-file-size">${sizeStr}</div>
                     </div>
                     <div class="hf-btn-area">
                     ${f.isInstalled
                     ? `<button class="btn-sm btn-accent i18n-btn" data-i18n-key="localai.use" onclick="useLocalAIModel('${escapeHtml(baseName)}')">${t('localai.use')}</button>`
                     : isDownloading
-                        ? `<button class="btn-sm i18n-btn" data-i18n-key="localai.cancel" style="background:rgba(239,68,68,.1);color:#ef4444" onclick="cancelLocalAIDownload('${escapeHtml(baseName)}','${escapeHtml(repo)}','hf')">${t('localai.cancel')}</button>`
+                        ? `<button class="btn-sm btn-danger-outline i18n-btn" data-i18n-key="localai.cancel" onclick="cancelLocalAIDownload('${escapeHtml(baseName)}','${escapeHtml(repo)}','hf')">${t('localai.cancel')}</button>`
                         : `<button class="btn-sm btn-accent i18n-btn" data-i18n-key="localai.download" onclick="startLocalAIDownload('${escapeHtml(repo)}','${escapeHtml(f.fileName)}','hf')">${t('localai.download')}</button>`
                 }
                     </div>
                 </div>
-                <div id="hf-prog-${id}" style="display:${isDownloading ? 'block' : 'none'};margin-top:6px">
-                    <div style="background:var(--surface2);border-radius:4px;height:4px;overflow:hidden">
-                        <div class="dl-bar" style="background:var(--accent);height:4px;width:0%;transition:width .3s"></div>
-                    </div>
-                    <div class="dl-text" style="font-size:10px;color:var(--text3);margin-top:3px"></div>
+                <div id="hf-prog-${id}" class="dl-progress" style="display:${isDownloading ? 'block' : 'none'}">
+                    <div class="dl-progress-track"><div class="dl-bar"></div></div>
+                    <div class="dl-text"></div>
                 </div>
             </div>`;
         }).join('');
@@ -96,10 +98,9 @@ function closeHfRepoFiles() {
     document.getElementById('hfRepoFiles').style.display = 'none';
 }
 
-
 let _localAIDownloadPollers = {};
 
-function openLocalAIModal() {
+export function openLocalAIModal() {
     document.getElementById('localAIModal').style.display = 'flex';
     refreshLocalAIModal();
 }
@@ -132,17 +133,16 @@ async function loadInstalledModels() {
         container.innerHTML = data.models.map(m => {
             const isActive = currentProvider === 'LocalAI' && currentModel === m.fileName;
             return `
-            <div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid ${isActive ? 'var(--accent)' : 'var(--border)'};border-radius:6px;padding:8px 12px;margin-bottom:6px">
-                <div style="flex:1;min-width:0">
-                    <div style="font-family:var(--mono);font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(m.fileName)}</div>
-                    <div style="font-size:11px;color:var(--text3);margin-top:2px">${m.sizeMb} MB</div>
+            <div class="local-model-row ${isActive ? 'active' : ''}">
+                <div class="local-model-info">
+                    <div class="local-model-name">${escapeHtml(m.fileName)}</div>
+                    <div class="local-model-size">${m.sizeMb} MB</div>
                 </div>
                 ${isActive
-                    ? `<span style="font-size:10px;padding:2px 8px;background:rgba(79,142,247,.15);color:var(--accent);border-radius:4px">${t('localai.active')}</span>`
+                    ? `<span class="local-model-active-tag">${t('localai.active')}</span>`
                     : `<button class="btn-sm btn-accent" onclick="useLocalAIModel('${escapeHtml(m.fileName)}')">${t('localai.use')}</button>`
                 }
-                <button class="btn-sm" style="background:rgba(239,68,68,.1);color:#ef4444;border-color:rgba(239,68,68,.3)"
-                        onclick="deleteLocalAIModel('${escapeHtml(m.fileName)}')">🗑</button>
+                <button class="btn-sm btn-danger-outline" onclick="deleteLocalAIModel('${escapeHtml(m.fileName)}')">🗑</button>
             </div>`;
         }).join('');
     } catch {
@@ -157,22 +157,19 @@ async function loadRecommendedModels() {
         const data = await r.json();
 
         container.innerHTML = data.map(m => `
-            <div id="rec-${m.fileName.replace(/\./g, '-')}"
-                 style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">
-                <div style="flex:1;min-width:0">
-                    <div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(m.name)}</div>
-                    <div style="font-size:11px;color:var(--text3);margin-top:2px">${t(m.description)} — ${m.sizeMb} MB</div>
-                    <div id="prog-${m.fileName.replace(/\./g, '-')}" style="display:none;margin-top:6px">
-                        <div style="background:var(--surface3);border-radius:4px;height:4px;overflow:hidden">
-                            <div class="dl-bar" style="background:var(--accent);height:4px;width:0%;transition:width .3s"></div>
-                        </div>
-                        <div class="dl-text" style="font-size:10px;color:var(--text3);margin-top:3px"></div>
+            <div id="rec-${m.fileName.replace(/\./g, '-')}" class="local-model-row">
+                <div class="local-model-info">
+                    <div class="local-model-title">${escapeHtml(m.name)}</div>
+                    <div class="local-model-desc">${t(m.description)} — ${m.sizeMb} MB</div>
+                    <div id="prog-${m.fileName.replace(/\./g, '-')}" class="dl-progress" style="display:none">
+                        <div class="dl-progress-track"><div class="dl-bar"></div></div>
+                        <div class="dl-text"></div>
                     </div>
                 </div>
                 ${m.isInstalled
                 ? `<button class="btn-sm btn-accent i18n-btn" data-i18n-key="localai.use" onclick="useLocalAIModel('${m.fileName}')">${t('localai.use')}</button>`
                 : m.isDownloading
-                    ? `<button class="btn-sm i18n-btn" data-i18n-key="localai.cancel" style="background:rgba(239,68,68,.1);color:#ef4444" onclick="cancelLocalAIDownload('${m.fileName}','${m.repo}','recommended')">${t('localai.cancel')}</button>`
+                    ? `<button class="btn-sm btn-danger-outline i18n-btn" data-i18n-key="localai.cancel" onclick="cancelLocalAIDownload('${m.fileName}','${m.repo}','recommended')">${t('localai.cancel')}</button>`
                     : `<button class="btn-sm btn-accent i18n-btn" data-i18n-key="localai.download" onclick="startLocalAIDownload('${m.repo}','${m.fileName}')">${t('localai.download')}</button>`
             }
             </div>`).join('');
@@ -191,8 +188,8 @@ async function useLocalAIModel(fileName) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider: 'LocalAI', model: fileName })
     });
-    currentProvider = 'LocalAI';
-    currentModel = fileName;
+    setCurrentProvider('LocalAI');
+    setCurrentModel(fileName);
     closeLocalAIModal();
 
     // Zaktualizuj select bezpośrednio — bez dodatkowego request do API
@@ -236,8 +233,7 @@ async function startLocalAIDownload(repo, fileName, source = 'recommended') {
             const row = document.getElementById(`hf-row-${id}`);
             if (row) {
                 row.querySelector('.hf-btn-area').innerHTML =
-                    `<button class="btn-sm" style="background:rgba(239,68,68,.1);color:#ef4444"
-                        onclick="cancelLocalAIDownload('${baseName}','${escapeHtml(repo)}','hf')">${t('localai.cancel')}</button>`;
+                    `<button class="btn-sm btn-danger-outline" onclick="cancelLocalAIDownload('${baseName}','${escapeHtml(repo)}','hf')">${t('localai.cancel')}</button>`;
                 const progEl = document.getElementById(`hf-prog-${id}`);
                 if (progEl) progEl.style.display = 'block';
             }
@@ -271,7 +267,7 @@ async function deleteLocalAIModel(fileName) {
 
     // Jeśli usunięto aktywny model — wyczyść select
     if (currentProvider === 'LocalAI' && currentModel === fileName) {
-        currentModel = '';
+        setCurrentModel('');
         ['snippetModel', 'modelSelect'].forEach(id => {
             const sel = document.getElementById(id);
             if (sel) sel.innerHTML = `<option value="">${t('localai.noModels')}</option>`;
@@ -346,10 +342,12 @@ async function pollDownloadStatus(fileName, source = 'recommended', repo = null)
     } catch { stopDownloadPoller(fileName); }
 }
 
-function formatBytes(bytes) {
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
-// ── Error helpers ─────────────────────────────────────────────────────────────
+window.searchHuggingFace = searchHuggingFace;
+window.loadHfRepoFiles = loadHfRepoFiles;
+window.closeHfRepoFiles = closeHfRepoFiles;
+window.closeLocalAIModal = closeLocalAIModal;
+window.useLocalAIModel = useLocalAIModel;
+window.startLocalAIDownload = startLocalAIDownload;
+window.cancelLocalAIDownload = cancelLocalAIDownload;
+window.deleteLocalAIModel = deleteLocalAIModel;
+window.setLocalAICustomModel = setLocalAICustomModel;

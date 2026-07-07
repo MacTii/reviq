@@ -1,10 +1,14 @@
-﻿// ── i18n ─────────────────────────────────────────────────────────────────────
 // ── i18n ──────────────────────────────────────────────────────────────────────
-let _locale = {};
-let _localeFallback = {};  // zawsze pl jako fallback
-let _lang = localStorage.getItem('lang') || 'pl';
+import { currentProvider } from './providerState.js';
+import { _lastLoaderMsg, _renderLoader } from './results.js';
+import { _lastRepoInfo, renderRepoInfo } from './review.js';
+import { loadHistory } from './history.js';
 
-async function loadLocale(lang) {
+export let _locale = {};
+let _localeFallback = {};  // zawsze pl jako fallback
+export let _lang = localStorage.getItem('lang') || 'pl';
+
+export async function loadLocale(lang) {
     try {
         const v = '?v=4';
         const fb = await fetch('/locales/pl.json' + v);
@@ -22,14 +26,14 @@ async function loadLocale(lang) {
     }
 }
 
-function t(key, vars = {}) {
+export function t(key, vars = {}) {
     let str = _locale[key] ?? _localeFallback[key] ?? key;
     for (const [k, v] of Object.entries(vars))
         str = str.replace(`{${k}}`, v);
     return str;
 }
 
-function applyTranslations() {
+export function applyTranslations() {
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
         const attr = el.getAttribute('data-i18n-attr');
@@ -98,11 +102,13 @@ function applyTranslations() {
         loadHistory();
 }
 
-function setLang(lang) {
+export function setLang(lang) {
     loadLocale(lang);
     document.querySelectorAll('.lang-btn').forEach(b =>
         b.classList.toggle('active', b.dataset.lang === lang));
 }
+
+window.setLang = setLang;
 
 // Ustaw aktywny przycisk języka przy starcie
 document.addEventListener('DOMContentLoaded', () => {

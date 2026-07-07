@@ -1,4 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Reviq.API.Requests;
+using Reviq.API.Responses;
 using Reviq.Application.Interfaces;
 
 namespace Reviq.API.Controllers;
@@ -44,7 +46,7 @@ public sealed class LocalAIController(ILocalAIService localAiService) : Controll
     {
         fileName = Path.GetFileName(fileName);
         return localAiService.DeleteModel(fileName)
-            ? Ok(new { success = true })
+            ? Ok(new OperationResultResponse(true))
             : NotFound();
     }
 
@@ -56,8 +58,6 @@ public sealed class LocalAIController(ILocalAIService localAiService) : Controll
     public IActionResult CancelDownload(string fileName)
     {
         localAiService.CancelDownload(Path.GetFileName(fileName));
-        return Ok(new { success = true });
+        return Ok(new OperationResultResponse(true));
     }
 }
-
-public sealed record DownloadRequest(string Repo, string FileName);

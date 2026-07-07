@@ -1,4 +1,7 @@
-﻿const API = '/api';
+import { _lang, loadLocale } from './i18n.js';
+import { initProviders, pollProviderStatus } from './providers.js';
+import { loadHistory } from './history.js';
+import './export.js'; // rejestruje window.exportHTML/exportPDF — nic go nie importuje wprost
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 function switchTab(tab) {
@@ -16,6 +19,8 @@ function showPage(page) {
     if (page === 'history') loadHistory();
 }
 
+window.switchTab = switchTab;
+window.showPage = showPage;
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {

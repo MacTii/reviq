@@ -1,5 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Mediator;
+using Microsoft.AspNetCore.Mvc;
 using Reviq.API.Requests;
+using Reviq.API.Responses;
+using Reviq.Application.Features.AI.Queries;
 using Reviq.Application.Interfaces;
 using Reviq.Domain.Enums;
 
@@ -8,8 +11,8 @@ namespace Reviq.API.Controllers;
 [ApiController]
 [Route("api/ai")]
 public sealed class AIController(
-    IAIProviderFactory providerFactory,
-    ILocalAIService localAIService) : ControllerBase
+    IMediator mediator,
+    IAIProviderFactory providerFactory) : ControllerBase
 {
     [HttpGet("providers")]
     public IActionResult GetProviders()
@@ -17,50 +20,19 @@ public sealed class AIController(
         var configured = providerFactory.GetConfiguredProviders();
         var current = providerFactory.GetCurrent();
 
-        var providers = configured.Select(p => new
-        {
-            name = p.Name.ToString(),
-            label = p.Name.ToString(),
-            type = p.Type.ToString().ToLower(),
-            hasConfig = p.HasConfig
-        });
+        var providers = configured
+            .Select(p => new ProviderSummaryResponse(
+                p.Name.ToString(), p.Name.ToString(), p.Type.ToString().ToLowerInvariant(), p.HasConfig))
+            .ToList();
 
-        return Ok(new { providers, currentProvider = current.Name.ToString() });
+        return Ok(new ProvidersResponse(providers, current.Name.ToString()));
     }
 
     [HttpGet("providers/{name}/status")]
     public async Task<IActionResult> GetProviderStatus(string name, CancellationToken ct)
     {
-        if (!Enum.TryParse<ProviderName>(name, ignoreCase: true, out var providerName))
-            return BadRequest($"Unknown provider: {name}");
-
-        // LocalAI — zawsze dostępny (lokalny provider), modele opcjonalne
-        if (providerName == ProviderName.LocalAI)
-        {
-            var installed = await localAIService.GetInstalledModelsAsync();
-            var models = installed.Models.Select(m => m.FileName).ToList();
-            return Ok(new { name, available = true, models });
-        }
-
-        // Jeśli provider wymaga konfiguracji (np. API key) a nie jest skonfigurowany,
-        // traktujemy go jako niedostępny zamiast wykonywać zewnętrzne żądanie
-        var configured = providerFactory.GetConfiguredProviders()
-            .FirstOrDefault(p => p.Name == providerName);
-        if (configured != null && !configured.HasConfig)
-            return Ok(new { name, available = false, models = new List<string>() });
-
-        var provider = providerFactory.GetProvider(providerName);
-
-        // Krótki timeout dla sprawdzania dostępności - nie blokuj UI
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(TimeSpan.FromSeconds(3));
-
-        bool available;
-        try { available = await provider.IsAvailableAsync(); }
-        catch { available = false; }
-
-        var modelList = available ? await provider.GetAvailableModelsAsync() : new List<string>();
-        return Ok(new { name, available, models = modelList });
+        var status = await mediator.Send(new GetProviderStatusQuery(name), ct);
+        return status is null ? BadRequest($"Unknown provider: {name}") : Ok(status);
     }
 
     [HttpGet("models")]
@@ -70,7 +42,7 @@ public sealed class AIController(
             return BadRequest($"Unknown provider: {provider}");
 
         var models = await providerFactory.GetProvider(name).GetAvailableModelsAsync();
-        return Ok(new { provider = name.ToString(), models });
+        return Ok(new ModelsResponse(name.ToString(), models));
     }
 
     [HttpPost("provider")]
@@ -83,12 +55,7 @@ public sealed class AIController(
         if (!string.IsNullOrWhiteSpace(req.Model))
             providerFactory.SetModel(req.Model);
 
-        return Ok(new
-        {
-            success = true,
-            provider = name.ToString(),
-            model = providerFactory.GetCurrent().CurrentModel
-        });
+        return Ok(new SetProviderResponse(true, name.ToString(), providerFactory.GetCurrent().CurrentModel));
     }
 
     [HttpPost("model")]
@@ -98,6 +65,6 @@ public sealed class AIController(
             return BadRequest("Model is required.");
 
         providerFactory.SetModel(req.Model);
-        return Ok(new { success = true, model = req.Model });
+        return Ok(new SetModelResponse(true, req.Model));
     }
 }

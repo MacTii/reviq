@@ -1,15 +1,17 @@
-﻿// ── Providers & Models ────────────────────────────────────────────────────────
-let currentProvider = 'LocalAI';
-let currentModel = '';
-let _lastRepoInfo = null;
+// ── Providers & Models ────────────────────────────────────────────────────────
+import { API } from './api.js';
+import { t } from './i18n.js';
+import { showError } from './utils.js';
+import { openLocalAIModal } from './localai.js';
+import { currentProvider, currentModel, setCurrentProvider, setCurrentModel } from './providerState.js';
 
-async function initProviders() {
+export async function initProviders() {
     try {
         const r = await fetch(`${API}/ai/providers`);
         const d = await r.json();
 
-        currentProvider = d.currentProvider ?? 'LocalAI';
-        currentModel = d.currentModel ?? '';
+        setCurrentProvider(d.currentProvider ?? 'LocalAI');
+        setCurrentModel(d.currentModel ?? '');
 
         // Sprawdź dostępność wszystkich providerów równolegle
         const statusResults = await Promise.allSettled(
@@ -50,7 +52,7 @@ function _checkLocalAIModal() {
     if (!hasModels) setTimeout(() => openLocalAIModal(), 300);
 }
 
-function renderProviderMenu(providers) {
+export function renderProviderMenu(providers) {
     const menu = document.getElementById('providerMenu');
     menu.innerHTML = providers.map(p => {
         const dotClass = p.available ? 'online' : (!p.hasConfig ? 'unknown' : 'offline');
@@ -68,7 +70,7 @@ function renderProviderMenu(providers) {
     }).join('');
 }
 
-function updateProviderBtn() {
+export function updateProviderBtn() {
     const dot = document.getElementById('ollamaDot');
     const btn = document.getElementById('providerBtnText');
     const activeItem = document.querySelector('.provider-menu-item.active');
@@ -108,8 +110,8 @@ async function selectProvider(name, available) {
         });
         const d = await r.json();
 
-        currentProvider = d.provider;
-        currentModel = d.model ?? '';
+        setCurrentProvider(d.provider);
+        setCurrentModel(d.model ?? '');
 
         document.querySelectorAll('.provider-menu-item').forEach(el =>
             el.classList.toggle('active', el.dataset.name === name));
@@ -123,7 +125,7 @@ async function selectProvider(name, available) {
     }
 }
 
-async function loadModelsForProvider(providerName, activeModel = '') {
+export async function loadModelsForProvider(providerName, activeModel = '') {
     const isLocal = ['Ollama', 'LMStudio', 'LocalAI'].includes(providerName);
     const badge = isLocal ? 'LOCAL' : 'CLOUD';
 
@@ -156,7 +158,7 @@ async function loadModelsForProvider(providerName, activeModel = '') {
             if (sel) sel.innerHTML = opts;
         });
 
-        if (modelToSelect) currentModel = modelToSelect;
+        if (modelToSelect) setCurrentModel(modelToSelect);
 
     } catch {
         ['snippetModel', 'modelSelect'].forEach(id => {
@@ -166,18 +168,7 @@ async function loadModelsForProvider(providerName, activeModel = '') {
     }
 }
 
-async function syncModelBeforeReview() {
-    const select = document.getElementById('modelSelect');
-    if (!select?.value || select.value === currentModel) return;
-    await fetch(`${API}/ai/model`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: select.value })
-    });
-    currentModel = select.value;
-}
-
-async function pollProviderStatus() {
+export async function pollProviderStatus() {
     try {
         const r = await fetch(`${API}/ai/providers/${currentProvider}/status`);
         if (!r.ok) return;
@@ -186,3 +177,6 @@ async function pollProviderStatus() {
         if (dot) dot.className = `status-dot ${d.available ? 'online' : 'offline'}`;
     } catch { /* ignore */ }
 }
+
+window.selectProvider = selectProvider;
+window.toggleProviderMenu = toggleProviderMenu;

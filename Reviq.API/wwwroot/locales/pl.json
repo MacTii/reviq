@@ -63,6 +63,7 @@
   "history.empty": "📭 Brak poprzednich analiz w tej sesji.",
   "history.errorLoad": "⚠ Błąd ładowania historii.",
   "history.errorDetail": "⚠ Nie udało się załadować analizy.",
+  "history.loadingDetail": "Ładowanie wyników...",
   "history.noHistory": "Brak historii. Uruchom pierwszą analizę.",
   "lines": "{n} linii",
   "files.count": "plik",

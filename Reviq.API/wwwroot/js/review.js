@@ -1,4 +1,9 @@
-﻿// ── Review ──────────────────────────────────────────────────────────────────
+// ── Review ──────────────────────────────────────────────────────────────────
+import { API } from './api.js';
+import { t } from './i18n.js';
+import { escapeHtml, detectLang, showError, clearError, showSnippetError, clearSnippetError } from './utils.js';
+import { renderResults, showLoader } from './results.js';
+
 // ── Model sync before review ───────────────────────────────────────────────────
 async function syncModelBeforeReview(scope) {
     const model = document.getElementById(scope === 'snippet' ? 'snippetModel' : 'modelSelect').value;
@@ -10,7 +15,6 @@ async function syncModelBeforeReview(scope) {
         });
     }
 }
-
 
 // ── Checkbox toggle ───────────────────────────────────────────────────────────
 document.addEventListener('click', e => {
@@ -148,26 +152,6 @@ async function startSnippetReview() {
     }
 }
 
-function detectLang(fileName) {
-    const ext = fileName.split('.').pop().toLowerCase();
-    return { cs: 'C#', ts: 'TypeScript', js: 'JavaScript', py: 'Python', java: 'Java', go: 'Go', rs: 'Rust', php: 'PHP' }[ext] || 'Unknown';
-}
-
-function renderMultiResults(results) {
-    // Sklejamy wyniki wielu plików w jeden widok
-    const merged = {
-        summary: {
-            critical: results.reduce((s, r) => s + (r.summary?.critical ?? 0), 0),
-            warnings: results.reduce((s, r) => s + (r.summary?.warnings ?? 0), 0),
-            info: results.reduce((s, r) => s + (r.summary?.info ?? 0), 0),
-            overallScore: Math.round(results.reduce((s, r) => s + (r.summary?.overallScore ?? 0), 0) / results.length),
-            generalFeedback: `Przeanalizowano ${results.length} pliki.`
-        },
-        files: results.flatMap(r => r.files ?? [])
-    };
-    renderResults(merged);
-}
-
 // ── Repo review ───────────────────────────────────────────────────────────────
 // ── Path history ──────────────────────────────────────────────────────────────
 const _recentPaths = JSON.parse(sessionStorage.getItem('recentPaths') || '[]');
@@ -197,7 +181,9 @@ function getSelectedCategories() {
 
 document.addEventListener('DOMContentLoaded', updatePathDatalist);
 
-function renderRepoInfo(d, diffScope) {
+export let _lastRepoInfo = null;
+
+export function renderRepoInfo(d, diffScope) {
     const content = document.getElementById('repoInfoContent');
     if (!content) return;
     const scopeLabels = [
@@ -299,3 +285,12 @@ async function startReview() {
         btn.textContent = t('btn.runReview');
     }
 }
+
+window.removeFile = removeFile;
+window.previewFile = previewFile;
+window.previewCode = previewCode;
+window.closePreviewModal = closePreviewModal;
+window.updateLineCount = updateLineCount;
+window.startSnippetReview = startSnippetReview;
+window.checkRepo = checkRepo;
+window.startReview = startReview;

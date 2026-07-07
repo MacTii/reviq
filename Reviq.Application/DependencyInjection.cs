@@ -1,6 +1,8 @@
 ﻿using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Reviq.Application.Common;
+using Reviq.Application.Features.Webhook;
+using Reviq.Application.Interfaces;
 
 namespace Reviq.Application;
 
@@ -14,6 +16,7 @@ public static class DependencyInjection
             o.PipelineBehaviors = [typeof(ValidationBehavior<,>)];
         });
         services.AddValidatorsFromAssemblyContaining<IApplicationMarker>();
+        services.AddScoped<IPrFileReviewer, PrFileReviewer>();
         return services;
     }
 }

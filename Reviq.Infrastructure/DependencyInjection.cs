@@ -57,6 +57,7 @@ public static class DependencyInjection
 
         services.AddHttpClient<GitHubProvider>();
         services.AddHttpClient<GitLabProvider>();
+        services.AddHttpClient(nameof(HttpPrFileContentFetcher));
 
         services.AddHttpClient("HuggingFace", (sp, client) =>
         {
@@ -82,6 +83,7 @@ public static class DependencyInjection
         services.AddSingleton<IReviewRepository, ReviewRepository>();
         services.AddSingleton<IGitProvider, GitService>();
         services.AddScoped<IGitHostProviderFactory, GitHostProviderFactory>();
+        services.AddScoped<IPrFileContentFetcher, HttpPrFileContentFetcher>();
         return services;
     }
 
@@ -104,36 +106,13 @@ public static class DependencyInjection
             return new OllamaProvider(http, logger, options);
         });
 
-        // Cloud providers
-        services.AddSingleton<IAIProvider>(sp =>
-        {
-            var (http, log, opts) = CloudProviderDeps<ClaudeProvider>(sp);
-            return new ClaudeProvider(http, log, opts.Claude);
-        });
-
-        services.AddSingleton<IAIProvider>(sp =>
-        {
-            var (http, log, opts) = CloudProviderDeps<OpenAIProvider>(sp);
-            return new OpenAIProvider(http, log, opts.OpenAI);
-        });
-
-        services.AddSingleton<IAIProvider>(sp =>
-        {
-            var (http, log, opts) = CloudProviderDeps<GroqProvider>(sp);
-            return new GroqProvider(http, log, opts.Groq);
-        });
-
-        services.AddSingleton<IAIProvider>(sp =>
-        {
-            var (http, log, opts) = CloudProviderDeps<OpenRouterProvider>(sp);
-            return new OpenRouterProvider(http, log, opts.OpenRouter);
-        });
-
-        services.AddSingleton<IAIProvider>(sp =>
-        {
-            var (http, log, opts) = CloudProviderDeps<LMStudioProvider>(sp);
-            return new LMStudioProvider(http, log, opts.LMStudio);
-        });
+        // Cloud providers — each registered via the shared factory helper to avoid
+        // repeating the "resolve HttpClient + logger + options" boilerplate per provider.
+        services.AddCloudProvider<ClaudeProvider>((http, log, opts) => new ClaudeProvider(http, log, opts.Claude));
+        services.AddCloudProvider<OpenAIProvider>((http, log, opts) => new OpenAIProvider(http, log, opts.OpenAI));
+        services.AddCloudProvider<GroqProvider>((http, log, opts) => new GroqProvider(http, log, opts.Groq));
+        services.AddCloudProvider<OpenRouterProvider>((http, log, opts) => new OpenRouterProvider(http, log, opts.OpenRouter));
+        services.AddCloudProvider<LMStudioProvider>((http, log, opts) => new LMStudioProvider(http, log, opts.LMStudio));
 
         // Factory
         services.AddSingleton<AIProviderFactory>(sp => new AIProviderFactory(
@@ -145,13 +124,16 @@ public static class DependencyInjection
         return services;
     }
 
-    private static (HttpClient http, ILogger<T> log, AIProviderOptions opts) CloudProviderDeps<T>(
-        IServiceProvider sp) where T : class
-        => (
+    private static IServiceCollection AddCloudProvider<T>(
+        this IServiceCollection services, Func<HttpClient, ILogger<T>, AIProviderOptions, T> factory)
+        where T : class, IAIProvider
+    {
+        services.AddSingleton<IAIProvider>(sp => factory(
             sp.GetRequiredService<IHttpClientFactory>().CreateClient(typeof(T).Name),
             sp.GetRequiredService<ILoggerFactory>().CreateLogger<T>(),
-            sp.GetRequiredService<IOptions<AIProviderOptions>>().Value
-        );
+            sp.GetRequiredService<IOptions<AIProviderOptions>>().Value));
+        return services;
+    }
 
     // ── LOCAL AI ───────────────────────────────────────────────────────────────
 

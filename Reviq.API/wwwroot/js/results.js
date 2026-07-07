@@ -1,7 +1,10 @@
-﻿// ── Results & Filters ───────────────────────────────────────────────────────
+// ── Results & Filters ───────────────────────────────────────────────────────
+import { t } from './i18n.js';
+import { escapeHtml, sevLabel, stripCodeFences } from './utils.js';
+
 // ── Render results ────────────────────────────────────────────────────────────
-let _lastResults = null;
-const _ignoredIssues = new Set(); // "fileIdx-issueIdx"
+export let _lastResults = null;
+export const _ignoredIssues = new Set(); // "fileIdx-issueIdx"
 
 // ── Active filters ────────────────────────────────────────────────────────────
 const _filters = { severity: new Set(), category: new Set() };
@@ -131,13 +134,13 @@ function restoreIgnored() {
     applyFilters();
 }
 
-function renderResultsInto(data, area) {
+export function renderResultsInto(data, area) {
     // Unikalny prefix żeby ID nie kolidowały z głównym widokiem
     const prefix = 'h' + Math.random().toString(36).slice(2, 7);
     _renderResults(data, area, false, prefix);
 }
 
-function renderResults(data) {
+export function renderResults(data) {
     _lastResults = data;
     _ignoredIssues.clear();
     const area = document.getElementById('resultsArea');
@@ -172,7 +175,7 @@ function _renderResults(data, area, isMain, prefix) {
         </div>`;
 
     if (data.summary.generalFeedback)
-        html += `<div class="general-feedback">💬 ${data.summary.generalFeedback}</div>`;
+        html += `<div class="general-feedback">💬 ${escapeHtml(data.summary.generalFeedback)}</div>`;
 
     // Pasek filtrów
     html += `
@@ -215,7 +218,7 @@ function _renderResults(data, area, isMain, prefix) {
                             ${warn > 0 ? `<span class="badge warning">! ${warn}</span>` : ''}
                             ${info > 0 ? `<span class="badge info">i ${info}</span>` : ''}
                         </div>
-                        ${file.originalCode ? `<button class="file-preview-btn" onclick="event.stopPropagation();previewCode('${escapeHtml(file.filePath)}',${JSON.stringify(file.originalCode)})" title="Podgląd kodu">👁</button>` : ''}
+                        ${file.originalCode ? `<button class="file-preview-btn" onclick="event.stopPropagation();previewCode('${escapeHtml(file.filePath)}',decodeURIComponent('${encodeURIComponent(file.originalCode)}'))" title="Podgląd kodu">👁</button>` : ''}
                         <span class="file-score" style="color:${fc}">${file.score}/100</span>
                         <span class="chevron">▼</span>
                     </div>
@@ -236,11 +239,6 @@ function _renderResults(data, area, isMain, prefix) {
         document.getElementById('exportHtmlBtn').disabled = false;
         document.getElementById('exportPdfBtn').disabled = false;
     }
-}
-
-function stripCodeFences(str) {
-    if (!str) return '';
-    return str.replace(/^```[\w]*\n?/m, '').replace(/\n?```$/m, '').trim();
 }
 
 function renderIssue(issue, cardIdx, issueIdx, isMain = true) {
@@ -281,10 +279,6 @@ function renderIssue(issue, cardIdx, issueIdx, isMain = true) {
         </div>`;
 }
 
-function sevLabel(sev) {
-    return { Critical: t('severity.critical'), Warning: t('severity.warning'), Info: t('severity.info') }[sev] ?? sev;
-}
-
 function toggleDiff(id) {
     const el = document.getElementById(id);
     const btn = el.previousElementSibling;
@@ -301,20 +295,15 @@ function toggleCard(cardId) {
     document.getElementById(cardId).classList.toggle('open');
 }
 
-function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
 // ── Loader ────────────────────────────────────────────────────────────────────
-let _lastLoaderMsg = null;
+export let _lastLoaderMsg = null;
 
-function showLoader(msg = t('btn.analyzing')) {
+export function showLoader(msg = t('btn.analyzing')) {
     _lastLoaderMsg = msg;
     _renderLoader(msg);
 }
 
-function _renderLoader(msg) {
+export function _renderLoader(msg) {
     document.getElementById('resultsArea').innerHTML = `
         <div class="panel">
             <div class="panel-header"><div class="dot"></div>${t('panel.results')}</div>
@@ -325,3 +314,10 @@ function _renderLoader(msg) {
             </div>
         </div>`;
 }
+
+window.toggleFilter = toggleFilter;
+window.clearFilters = clearFilters;
+window.ignoreIssue = ignoreIssue;
+window.restoreIgnored = restoreIgnored;
+window.toggleDiff = toggleDiff;
+window.toggleCard = toggleCard;

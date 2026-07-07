@@ -1,5 +1,10 @@
-﻿// ── History ─────────────────────────────────────────────────────────────────
-async function loadHistory() {
+// ── History ─────────────────────────────────────────────────────────────────
+import { API } from './api.js';
+import { t, _lang } from './i18n.js';
+import { escapeHtml } from './utils.js';
+import { renderResultsInto } from './results.js';
+
+export async function loadHistory() {
     const container = document.getElementById('historyList');
     container.innerHTML = `<div class="history-loading">${t('history.loading')}</div>`;
 
@@ -41,7 +46,7 @@ async function loadHistory() {
                     </div>
                 </div>
                 <div class="history-detail" id="hdetail-${item.reviewId}" style="display:none">
-                    <div class="history-detail-loading">Ładowanie wyników...</div>
+                    <div class="history-detail-loading">${t('history.loadingDetail')}</div>
                 </div>
             </div>`;
         }).join('');
@@ -105,4 +110,5 @@ async function toggleHistoryItem(id) {
     }
 }
 
-function closeHistoryDetail() { }
+window.loadHistory = loadHistory;
+window.toggleHistoryItem = toggleHistoryItem;
