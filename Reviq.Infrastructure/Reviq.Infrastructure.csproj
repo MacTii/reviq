@@ -7,16 +7,16 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="LLamaSharp" Version="0.26.0" />
-    <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.26.0" />
-    <PackageReference Include="LLamaSharp.Backend.Cuda12" Version="0.26.0" />
-    <PackageReference Include="LLamaSharp.Backend.Vulkan" Version="0.26.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.5" />
+    <PackageReference Include="LLamaSharp" Version="0.27.0" />
+    <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.27.0" />
+    <PackageReference Include="LLamaSharp.Backend.Cuda12" Version="0.27.0" />
+    <PackageReference Include="LLamaSharp.Backend.Vulkan" Version="0.27.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.9" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Reviq.Application\Reviq.Application.csproj" />
-    <ProjectReference Include="..\Reviq.Domain\Reviq.Domain.csproj" />
   </ItemGroup>
 
 </Project>

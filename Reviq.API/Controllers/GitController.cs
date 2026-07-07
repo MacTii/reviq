@@ -1,24 +1,18 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Reviq.Application.UseCases.GetRepoInfo;
+﻿using Mediator;
+using Microsoft.AspNetCore.Mvc;
+using Reviq.Application.Features.Git.Queries;
 using Reviq.Domain.Enums;
 
 namespace Reviq.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class GitController(GetRepoInfoHandler handler) : ControllerBase
+public sealed class GitController(IMediator mediator) : ControllerBase
 {
     [HttpGet("info")]
-    public async Task<IActionResult> GetRepoInfo([FromQuery] string path, [FromQuery] DiffScope diffScope = DiffScope.LastCommit)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-            return BadRequest(new { error = "path jest wymagany." });
-
-        var info = await handler.HandleAsync(new GetRepoInfoQuery
-        {
-            RepoPath = path,
-            Scope = diffScope
-        });
-        return Ok(info);
-    }
+    public async Task<IActionResult> GetRepoInfo(
+        [FromQuery] string path,
+        [FromQuery] DiffScope diffScope = DiffScope.LastCommit,
+        CancellationToken ct = default)
+        => Ok(await mediator.Send(new GetRepoInfoQuery(path, diffScope), ct));
 }

@@ -2,24 +2,24 @@
 
 namespace Reviq.Application.DTOs;
 
-public class ReviewResultDto
+public sealed class ReviewResultDto
 {
-    public string ReviewId { get; set; } = "";
-    public DateTime CreatedAt { get; set; }
-    public string RepoPath { get; set; } = "";
-    public string Branch { get; set; } = "";
-    public string CommitHash { get; set; } = "";
-    public List<FileReview> Files { get; set; } = new();
-    public ReviewSummary Summary { get; set; } = new();
+    public string ReviewId { get; init; } = "";
+    public DateTime CreatedAt { get; init; }
+    public string RepoPath { get; init; } = "";
+    public string Branch { get; init; } = "";
+    public string CommitHash { get; init; } = "";
+    public IReadOnlyList<FileReview> Files { get; init; } = Array.Empty<FileReview>();
+    public ReviewSummary Summary { get; init; } = default!;
 
-    public static ReviewResultDto FromDomain(ReviewResult result) => new()
+    public static ReviewResultDto FromDomain(ReviewResult r) => new()
     {
-        ReviewId = result.ReviewId,
-        CreatedAt = result.CreatedAt,
-        RepoPath = result.RepoPath,
-        Branch = result.Branch,
-        CommitHash = result.CommitHash,
-        Files = result.Files,
-        Summary = result.Summary
+        ReviewId = r.ReviewId,
+        CreatedAt = r.CreatedAt,
+        RepoPath = r.RepoPath,
+        Branch = r.Branch,
+        CommitHash = r.CommitHash,
+        Files = r.Files,
+        Summary = r.Summary
     };
 }

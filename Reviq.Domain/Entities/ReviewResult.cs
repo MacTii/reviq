@@ -1,14 +1,34 @@
-﻿namespace Reviq.Domain.Entities;
+namespace Reviq.Domain.Entities;
 
-public class ReviewResult
+public sealed class ReviewResult
 {
-    public string ReviewId { get; init; } = Guid.NewGuid().ToString("N")[..8];
-    public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
-    public string Label { get; set; } = "";      // np. nazwa pliku lub repo
-    public string Source { get; set; } = "";     // "snippet" | "repo"
-    public string RepoPath { get; set; } = "";
-    public string Branch { get; set; } = "";
-    public string CommitHash { get; set; } = "";
-    public List<FileReview> Files { get; set; } = new();
-    public ReviewSummary Summary { get; set; } = new();
+    public string ReviewId { get; }
+    public DateTime CreatedAt { get; }
+    public string Label { get; }
+    public string Source { get; }
+    public string RepoPath { get; }
+    public string Branch { get; }
+    public string CommitHash { get; }
+    public IReadOnlyList<FileReview> Files { get; }
+    public ReviewSummary Summary { get; }
+
+    public ReviewResult(
+        string label,
+        string source,
+        IReadOnlyList<FileReview> files,
+        ReviewSummary summary,
+        string repoPath = "",
+        string branch = "",
+        string commitHash = "")
+    {
+        ReviewId = Guid.NewGuid().ToString("N")[..8];
+        CreatedAt = DateTime.UtcNow;
+        Label = label;
+        Source = source;
+        Files = files;
+        Summary = summary;
+        RepoPath = repoPath;
+        Branch = branch;
+        CommitHash = commitHash;
+    }
 }

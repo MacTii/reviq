@@ -145,10 +145,10 @@
                                 <button class="btn-secondary" onclick="checkRepo()" data-i18n="btn.previewFiles">🔍 Podgląd plików</button>
                             </div>
                         </div>
-                        <div id="repoPreview" style="display:none; margin-top:16px;">
+                        <div id="repoPreview" class="repo-preview" style="display:none">
                             <div class="panel">
                                 <div class="panel-header"><div class="dot"></div><span data-i18n="panel.repoInfo">Info o repozytorium</span></div>
-                                <div style="padding:14px 18px;font-size:12px;display:flex;flex-direction:column;gap:8px;" id="repoInfoContent"></div>
+                                <div class="repo-info-content" id="repoInfoContent"></div>
                             </div>
                         </div>
                     </div>
@@ -180,25 +180,15 @@
             <div class="history-page">
                 <div class="history-header">
                     <div class="history-title" data-i18n="history.title">Historia reviewów</div>
-                    <button class="btn-secondary" style="width:auto;padding:6px 14px" onclick="loadHistory()" data-i18n="btn.refresh">↺ Odśwież</button>
+                    <button class="btn-secondary btn-auto" onclick="loadHistory()" data-i18n="btn.refresh">↺ Odśwież</button>
                 </div>
                 <div id="historyList"><div class="empty-state"><div class="empty-icon">🕓</div><p><span data-i18n="history.noHistory">Brak historii. Uruchom pierwszą analizę.</span></p></div></div>
-            </div>
-
-            <!-- Historia: podgląd wybranego review -->
-            <div id="historyDetail" style="display:none; margin-top:20px;">
-                <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-                    <button class="btn-secondary" style="width:auto;padding:6px 14px" onclick="closeHistoryDetail()" data-i18n="btn.back">← Wróć</button>
-                    <span style="font-size:13px;color:var(--text2)" id="historyDetailTitle"></span>
-                    <button class="btn-secondary" style="width:auto;padding:6px 14px;margin-left:auto" onclick="exportHtml()">⬇ Eksport HTML</button>
-                    <button class="btn-secondary" style="width:auto;padding:6px 14px" onclick="exportPdf()">⬇ Eksport PDF</button>
-                </div>
-                <div id="historyDetailResults"></div>
             </div>
         </div>
     </div>
 
-    <script src="/js/app.js"></script>
+    <!-- Moduły ES — kolejność ładowania wynika z grafu importów, nie z kolejności tagów -->
+    <script type="module" src="/js/app.js"></script>
 
     <!-- Modal: podgląd pliku -->
     <div id="previewModal" style="display:none" class="modal-overlay" onclick="if(event.target===this)closePreviewModal()">
@@ -215,60 +205,58 @@
     </div>
     <!-- Modal: Local AI — zarządzanie modelami -->
     <div id="localAIModal" style="display:none" class="modal-overlay" onclick="if(event.target===this)closeLocalAIModal()">
-        <div class="modal" style="max-width:680px;width:95%">
+        <div class="modal local-ai-modal">
             <div class="modal-header">
                 <div class="modal-title-wrap">
                     <span class="modal-title" data-i18n="localai.title">Local AI — modele wbudowane</span>
                 </div>
                 <button class="modal-close" onclick="closeLocalAIModal()">✕</button>
             </div>
-            <div style="padding:16px;display:flex;flex-direction:column;gap:20px;max-height:70vh;overflow-y:auto">
+            <div class="local-ai-body">
 
                 <!-- Zainstalowane -->
                 <div>
-                    <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.08em;margin-bottom:8px" data-i18n="localai.installed">ZAINSTALOWANE MODELE</div>
+                    <div class="local-ai-section-title" data-i18n="localai.installed">ZAINSTALOWANE MODELE</div>
                     <div id="localAIInstalled">
-                        <div style="color:var(--text3);font-size:12px" data-i18n="localai.noModels">Brak zainstalowanych modeli.</div>
+                        <div class="local-ai-hint" data-i18n="localai.noModels">Brak zainstalowanych modeli.</div>
                     </div>
                 </div>
 
                 <!-- Szukaj na HuggingFace -->
                 <div>
-                    <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.08em;margin-bottom:8px" data-i18n="localai.hfSearch">🤗 SZUKAJ NA HUGGINGFACE</div>
-                    <div style="display:flex;gap:8px;margin-bottom:10px">
-                        <input id="hfSearchInput" type="text" class="input"
+                    <div class="local-ai-section-title" data-i18n="localai.hfSearch">🤗 SZUKAJ NA HUGGINGFACE</div>
+                    <div class="local-ai-search-row">
+                        <input id="hfSearchInput" type="text" class="input input-flex"
                                data-i18n="localai.hfSearchPlaceholder" data-i18n-attr="placeholder" placeholder="np. qwen coder, deepseek coder, phi..."
-                               style="flex:1;font-size:12px"
                                onkeydown="if(event.key==='Enter')searchHuggingFace()" />
                         <button class="btn-sm btn-accent" onclick="searchHuggingFace()" data-i18n="localai.hfSearchBtn">🔍 Szukaj</button>
                     </div>
-                    <div id="hfSearchResults" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto"></div>
+                    <div id="hfSearchResults" class="hf-search-results"></div>
                     <!-- Panel plików wybranego repo -->
-                    <div id="hfRepoFiles" style="display:none;margin-top:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px">
-                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-                            <span id="hfRepoName" style="font-size:12px;font-family:var(--mono);color:var(--accent)"></span>
+                    <div id="hfRepoFiles" class="hf-repo-files" style="display:none">
+                        <div class="hf-repo-files-header">
+                            <span id="hfRepoName" class="hf-repo-name"></span>
                             <button class="btn-sm" onclick="closeHfRepoFiles()" data-i18n="localai.closeFiles">✕ Zamknij</button>
                         </div>
-                        <div id="hfFilesList" style="display:flex;flex-direction:column;gap:4px"></div>
+                        <div id="hfFilesList" class="hf-files-list"></div>
                     </div>
                 </div>
 
                 <!-- Polecane do pobrania -->
                 <div>
-                    <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.08em;margin-bottom:8px" data-i18n="localai.recommended">POLECANE MODELE</div>
-                    <div id="localAIRecommended" style="display:flex;flex-direction:column;gap:8px">
-                        <div style="color:var(--text3);font-size:12px" data-i18n="localai.loading">Ładowanie...</div>
+                    <div class="local-ai-section-title" data-i18n="localai.recommended">POLECANE MODELE</div>
+                    <div id="localAIRecommended" class="local-ai-recommended">
+                        <div class="local-ai-hint" data-i18n="localai.loading">Ładowanie...</div>
                     </div>
                 </div>
 
                 <!-- Własna ścieżka -->
                 <div>
-                    <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.08em;margin-bottom:8px" data-i18n="localai.customModel">WŁASNY MODEL (.gguf)</div>
-                    <div id="localAIModelsDir" style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:8px;padding:4px 8px;background:var(--surface2);border-radius:4px;word-break:break-all">📁 Folder modeli: ładowanie...</div>
-                    <div style="display:flex;gap:8px">
-                        <input id="localAICustomPath" type="text" class="input"
-                               data-i18n="localai.customPlaceholder" data-i18n-attr="placeholder" placeholder="C:\models\moj-model.gguf lub nazwa-pliku.gguf"
-                               style="flex:1;font-size:12px" />
+                    <div class="local-ai-section-title" data-i18n="localai.customModel">WŁASNY MODEL (.gguf)</div>
+                    <div id="localAIModelsDir" class="local-ai-models-dir">📁 Folder modeli: ładowanie...</div>
+                    <div class="local-ai-custom-row">
+                        <input id="localAICustomPath" type="text" class="input input-flex"
+                               data-i18n="localai.customPlaceholder" data-i18n-attr="placeholder" placeholder="C:\models\moj-model.gguf lub nazwa-pliku.gguf" />
                         <button class="btn-sm btn-accent" onclick="setLocalAICustomModel()" data-i18n="localai.use">Użyj</button>
                     </div>
                 </div>

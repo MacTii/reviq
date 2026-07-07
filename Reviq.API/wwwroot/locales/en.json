@@ -63,6 +63,7 @@
   "history.empty": "📭 No previous analyses this session.",
   "history.errorLoad": "⚠ Error loading history.",
   "history.errorDetail": "⚠ Failed to load analysis.",
+  "history.loadingDetail": "Loading results...",
   "history.noHistory": "No history. Run your first analysis.",
   "lines": "{n} lines",
   "files.count": "file",

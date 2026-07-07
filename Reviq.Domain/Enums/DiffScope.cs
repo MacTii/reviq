@@ -1,4 +1,4 @@
-﻿namespace Reviq.Domain.Enums;
+namespace Reviq.Domain.Enums;
 
 /// <summary>Zakres plików do analizy w repozytorium Git.</summary>
 public enum DiffScope

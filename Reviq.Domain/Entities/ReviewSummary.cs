@@ -1,11 +1,21 @@
-﻿namespace Reviq.Domain.Entities;
+namespace Reviq.Domain.Entities;
 
-public class ReviewSummary
+public sealed class ReviewSummary
 {
-    public int TotalIssues { get; set; }
-    public int Critical { get; set; }
-    public int Warnings { get; set; }
-    public int Info { get; set; }
-    public int OverallScore { get; set; }
-    public string? GeneralFeedback { get; set; }
+    public int TotalIssues { get; }
+    public int Critical { get; }
+    public int Warnings { get; }
+    public int Info { get; }
+    public int OverallScore { get; }
+    public string GeneralFeedback { get; }
+
+    public ReviewSummary(int totalIssues, int critical, int warnings, int info, int overallScore, string generalFeedback)
+    {
+        TotalIssues = totalIssues;
+        Critical = critical;
+        Warnings = warnings;
+        Info = info;
+        OverallScore = overallScore;
+        GeneralFeedback = generalFeedback;
+    }
 }
