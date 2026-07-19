@@ -1,57 +1,57 @@
 # Reviq — AI Code Review
 
-Reviq to narzędzie do automatycznego code review wspieranego przez AI. Pozwala przeanalizować pojedynczy fragment kodu, cały zbiór plików, zmiany w lokalnym repozytorium git albo automatycznie zareagować na webhook PR-a z GitHuba/GitLaba — wszystko z wyborem dowolnego providera AI (lokalnego lub chmurowego).
+Reviq is an AI-powered code review tool. It can analyze a single pasted code snippet, a whole batch of files, changes in a local git repository, or automatically react to a GitHub/GitLab pull-request webhook — all with a choice of any AI provider (local or cloud).
 
-Backend: ASP.NET Core Web API (.NET 10) w Clean Architecture + CQRS. Frontend: statyczny, zależny wyłącznie od przeglądarki (vanilla JS, moduły ES, bez bundlera).
+Backend: ASP.NET Core Web API (.NET 10) in Clean Architecture + CQRS. Frontend: static, browser-only (vanilla JS, ES modules, no bundler).
 
-## Zrzuty ekranu
+## Screenshots
 
-| Analiza kodu (wklej/wgraj pliki) | Zarządzanie modelami Local AI |
+| Code analysis (paste/upload files) | Local AI model management |
 |---|---|
-| ![Analiza kodu](docs/screenshots/01-analyze-code.png) | ![Local AI](docs/screenshots/02-local-ai-models.png) |
+| ![Code analysis](docs/screenshots/01-analyze-code.png) | ![Local AI](docs/screenshots/02-local-ai-models.png) |
 
-| Review repozytorium git | Historia analiz |
+| Git repository review | Analysis history |
 |---|---|
-| ![Repozytorium](docs/screenshots/03-repo-tab.jpg) | ![Historia](docs/screenshots/04-history.jpg) |
+| ![Repository](docs/screenshots/03-repo-tab.jpg) | ![History](docs/screenshots/04-history.jpg) |
 
-## Funkcjonalność
+## Features
 
-- **Analiza wklejonego kodu** — wklej fragment kodu (lub kilka plików naraz) i dostań ocenę (0–100), listę problemów z podziałem na Critical/Warning/Info, sugestie i diff „przed/po" dla wybranych issues.
-- **Review lokalnego repozytorium git** — wskaż ścieżkę do repo i wybierz zakres zmian do analizy: ostatni commit, zmiany od ostatniego pusha, niezacommitowane zmiany albo wszystkie pliki. Reviq sam wykonuje `git diff`/`git ls-files` (przez CLI `git`) i wysyła zmienione pliki do AI.
-- **Automatyczny review PR-ów (webhook)** — endpointy `POST /api/webhook/github` i `POST /api/webhook/gitlab` odbierają webhooki `pull_request`/`merge_request`, pobierają zmienione pliki z PR-a, uruchamiają analizę AI i odsyłają wynik jako komentarz na PR + status commita.
-- **Lokalne modele AI (offline)** — wbudowany silnik na bazie **LLamaSharp**/llama.cpp (CPU, CUDA 12, Vulkan) do uruchamiania modeli `.gguf` bez wysyłania kodu na zewnątrz. Wyszukiwanie i pobieranie modeli bezpośrednio z Hugging Face, zarządzanie pobranymi plikami z poziomu UI.
-- **Wielu providerów AI do wyboru w locie** — przełączanie providera i modelu bez restartu aplikacji, wraz z podglądem statusu dostępności każdego z nich.
-- **Historia analiz** — lista wcześniejszych review'ów z podglądem szczegółów (przechowywana w pamięci procesu — patrz [Znane ograniczenia](#znane-ograniczenia-i-pomysły-na-rozwój)).
-- **Eksport raportu** — wynik analizy można wyeksportować jako samodzielny plik HTML albo wydrukować/zapisać jako PDF.
-- **PL/EN** — pełny interfejs z przełącznikiem języka (i18n oparte o pliki JSON, bez zewnętrznych bibliotek).
+- **Pasted code analysis** — paste a code snippet (or several files at once) and get a score (0–100), a list of issues split into Critical/Warning/Info, suggestions, and a before/after diff for selected issues.
+- **Local git repository review** — point Reviq at a repo path and pick a diff scope: last commit, changes since the last push, uncommitted changes, or all files. Reviq runs `git diff`/`git ls-files` itself (via the `git` CLI) and sends the changed files to the AI.
+- **Automatic PR review (webhook)** — `POST /api/webhook/github` and `POST /api/webhook/gitlab` receive `pull_request`/`merge_request` webhooks, fetch the changed files from the PR, run an AI analysis, and post the result back as a PR comment + commit status.
+- **Local AI models (offline)** — a built-in engine on top of **LLamaSharp**/llama.cpp (CPU, CUDA 12, Vulkan) for running `.gguf` models without sending code anywhere. Search and download models directly from Hugging Face, manage downloaded files from the UI.
+- **Multiple AI providers, switchable on the fly** — switch provider and model without restarting the app, with a live availability status for each.
+- **Analysis history** — a list of past reviews with a detail view (kept in the process's memory — see [Known Limitations](#known-limitations--ideas-for-improvement)).
+- **Report export** — export an analysis result as a standalone HTML file, or print/save it as PDF.
+- **PL/EN** — a fully localized UI with a language switcher (JSON-based i18n, no external libraries).
 
-### Wspierani providerzy AI
+### Supported AI providers
 
-| Provider | Typ | Wymaga |
+| Provider | Type | Requires |
 |---|---|---|
-| **LocalAI** | lokalny (LLamaSharp/llama.cpp, w procesie) | pliku `.gguf` w folderze modeli |
-| **Ollama** | lokalny (serwer HTTP) | uruchomionego `ollama serve` (domyślnie `localhost:11434`) |
-| **LM Studio** | lokalny (serwer HTTP, OpenAI-compatible) | uruchomionego LM Studio (domyślnie `localhost:1234`) |
-| **Claude** | chmurowy | klucza API Anthropic |
-| **OpenAI** | chmurowy | klucza API OpenAI |
-| **Groq** | chmurowy | klucza API Groq |
-| **OpenRouter** | chmurowy | klucza API OpenRouter |
+| **LocalAI** | local (LLamaSharp/llama.cpp, in-process) | a `.gguf` file in the models folder |
+| **Ollama** | local (HTTP server) | a running `ollama serve` (default `localhost:11434`) |
+| **LM Studio** | local (HTTP server, OpenAI-compatible) | a running LM Studio (default `localhost:1234`) |
+| **Claude** | cloud | an Anthropic API key |
+| **OpenAI** | cloud | an OpenAI API key |
+| **Groq** | cloud | a Groq API key |
+| **OpenRouter** | cloud | an OpenRouter API key |
 
-## Architektura
+## Architecture
 
-Clean Architecture w 4 projektach, zależności skierowane do wewnątrz, CQRS przez własny, darmowy generator mediatora (`Mediator.SourceGenerator` — bez płatnej licencji MediatR v13+):
+Clean Architecture across 4 projects, dependencies pointing inward, CQRS via a self-hosted, free mediator source generator (`Mediator.SourceGenerator` — no MediatR v13+ commercial license required):
 
 ```
 Presentation/API  ─┐
 Infrastructure    ─┼──►  Application  ──►  Domain
 ```
 
-- **Reviq.Domain** — encje (`ReviewResult`, `FileReview`, `ReviewIssue`, `WebhookPayload`...), enumy, value objecty, interfejsy portów (`IGitProvider`, `IGitHostProvider`, `IReviewRepository`). Zero zależności na zewnątrz.
-- **Reviq.Application** — logika przypadków użycia jako Commands/Queries (feature-folder: `Features/Reviews`, `Features/Webhook`, `Features/Git`, `Features/AI`), walidacja przez FluentValidation, DTO, mapowanie.
-- **Reviq.Infrastructure** — implementacje portów: providerzy AI, integracje z GitHub/GitLab, operacje na lokalnym repo, silnik LocalAI/Hugging Face, repozytorium (in-memory).
-- **Reviq.API** — kontrolery jako cienka warstwa tłumacząca HTTP → Mediator, middleware, konfiguracja DI, statyczny frontend w `wwwroot`.
+- **Reviq.Domain** — entities (`ReviewResult`, `FileReview`, `ReviewIssue`, `WebhookPayload`...), enums, value objects, port interfaces (`IGitProvider`, `IGitHostProvider`, `IReviewRepository`). No outward dependencies.
+- **Reviq.Application** — use-case logic as Commands/Queries (feature folders: `Features/Reviews`, `Features/Webhook`, `Features/Git`, `Features/AI`), validation via FluentValidation, DTOs, mapping.
+- **Reviq.Infrastructure** — port implementations: AI providers, GitHub/GitLab integrations, local repo operations, LocalAI/Hugging Face engine, repository (in-memory).
+- **Reviq.API** — controllers as a thin layer translating HTTP → Mediator, middleware, DI configuration, static frontend under `wwwroot`.
 
-### Struktura katalogów
+### Project structure
 
 ```
 Reviq.Domain/
@@ -64,39 +64,39 @@ Reviq.Application/
 ├── Common/                # AIResponseParser, ReviewSummaryBuilder, ValidationBehavior
 ├── DTOs/
 ├── Features/
-│   ├── AI/Queries/            # status providera
-│   ├── Git/Queries/           # info o repo
-│   ├── Reviews/Commands+Queries/  # review snippetu/batcha/repo, historia
-│   └── Webhook/Commands/      # obsługa PR webhooków
+│   ├── AI/Queries/            # provider status
+│   ├── Git/Queries/           # repo info
+│   ├── Reviews/Commands+Queries/  # snippet/batch/repo review, history
+│   └── Webhook/Commands/      # PR webhook handling
 ├── Interfaces/            # IAIProvider(Factory), IGitHostProviderFactory, ILocalAIService...
 └── Requests/
 
 Reviq.Infrastructure/
 ├── AI/
 │   ├── Providers/         # LocalAI, Ollama, Claude, OpenAI, Groq, OpenRouter, LMStudio
-│   └── Parsing/           # budowa promptu
-├── Configuration/         # klasy opcji (Options pattern)
-├── Git/                   # GitService (CLI), GitHub/GitLab providerzy, fetcher plików PR
+│   └── Parsing/           # prompt building
+├── Configuration/         # options classes (Options pattern)
+├── Git/                   # GitService (CLI), GitHub/GitLab providers, PR file fetcher
 ├── LocalAI/
-│   ├── HuggingFace/       # klient wyszukiwania/pobierania modeli
+│   ├── HuggingFace/       # model search/download client
 │   ├── Models/
-│   └── Services/          # zarządzanie pobranymi modelami .gguf
+│   └── Services/          # downloaded .gguf model management
 └── Persistence/           # ReviewRepository (in-memory)
 
 Reviq.API/
 ├── Controllers/           # Code, Review, Git, History, AI, LocalAI, Webhook
 ├── Middleware/             # ErrorHandlingMiddleware
-├── Requests/ / Responses/  # kontrakty HTTP
-└── wwwroot/                # frontend (moduły ES, bez bundlera)
+├── Requests/ / Responses/  # HTTP contracts
+└── wwwroot/                # frontend (ES modules, no bundler)
     ├── css/
     ├── js/                  # api.js, i18n.js, providers.js, review.js, results.js,
     │                        # localai.js, history.js, export.js, app.js...
     └── locales/             # pl.json, en.json
 ```
 
-## Uruchomienie
+## Getting started
 
-**Wymagania:** .NET 10 SDK, zainstalowany `git` w PATH (do review'u lokalnych repozytoriów). Opcjonalnie: [Ollama](https://ollama.com)/[LM Studio](https://lmstudio.ai) uruchomione lokalnie, albo klucz API jednego z providerów chmurowych.
+**Requirements:** .NET 10 SDK, `git` available on PATH (for local repository reviews). Optional: [Ollama](https://ollama.com)/[LM Studio](https://lmstudio.ai) running locally, or an API key for one of the cloud providers.
 
 ```bash
 git clone <repo-url>
@@ -106,44 +106,44 @@ cd Reviq.API
 dotnet run
 ```
 
-Aplikacja wystartuje pod `http://localhost:5000` — pod tym samym adresem dostępny jest zarówno frontend (`/`), jak i Swagger (`/swagger`).
+The app starts on `http://localhost:5000` — both the frontend (`/`) and Swagger (`/swagger`) are served from the same address.
 
-### Konfiguracja (`Reviq.API/appsettings.json`)
+### Configuration (`Reviq.API/appsettings.json`)
 
-| Sekcja | Klucz | Opis |
+| Section | Key | Description |
 |---|---|---|
-| `Ollama` | `BaseUrl`, `DefaultModel` | adres lokalnego serwera Ollama |
-| `LocalAI` | `ModelsDir` | folder na pobrane pliki `.gguf` |
-| `AI:Claude` / `OpenAI` / `Groq` / `OpenRouter` / `LMStudio` | `ApiKey`, `BaseUrl`, `DefaultModel` | dane dostępowe do providerów chmurowych — puste domyślnie, provider jest wtedy oznaczony jako nieskonfigurowany |
-| `Git:GitHub` / `GitLab` | `Token` | token używany przy obsłudze webhooków (komentarz na PR, status commita) |
+| `Ollama` | `BaseUrl`, `DefaultModel` | address of the local Ollama server |
+| `LocalAI` | `ModelsDir` | folder for downloaded `.gguf` files |
+| `AI:Claude` / `OpenAI` / `Groq` / `OpenRouter` / `LMStudio` | `ApiKey`, `BaseUrl`, `DefaultModel` | credentials for cloud providers — empty by default, in which case the provider is reported as unconfigured |
+| `Git:GitHub` / `GitLab` | `Token` | token used when handling webhooks (PR comment, commit status) |
 
-Wszystkie klucze API są puste w repozytorium — nigdy nie commituj tam realnych sekretów; do lokalnej pracy użyj `appsettings.Development.json` albo [user-secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets).
+All API keys ship empty in the repository — never commit real secrets there; for local work use `appsettings.Development.json` or [user-secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets).
 
-### Naprawione
+### Recently fixed
 
-- **Scoped `IMediator` używany po zamknięciu scope'a requestu** — obsługa webhooków (`WebhookController`) odpalała przetwarzanie fire-and-forget przez `Task.Run`, korzystając ze scoped `IMediator` wstrzykniętego do kontrolera. Po zwróceniu odpowiedzi HTTP scope requestu (a wraz z nim zależności mediatora) był dysponowany, co groziło `ObjectDisposedException` w tle i cichym gubieniem błędów. Naprawione przez `IServiceScopeFactory.CreateScope()` wewnątrz przetwarzania w tle + `try/catch` z logowaniem.
-- **Swagger UI wystawiony też na produkcji** — `app.UseSwagger()`/`UseSwaggerUI()` działały bezwarunkowo. Zawężone do `app.Environment.IsDevelopment()`.
-- **Zahardkodowany adres nasłuchu** — `app.Run("http://localhost:5000")` ignorował `ASPNETCORE_URLS`/`--urls`/zmienne środowiskowe. Zamienione na `app.Run()` z domyślnym portem 5000 ustawionym przez konfigurowalny klucz `Urls` w `appsettings.json` — nadal działa "out of the box" na tym samym porcie, ale teraz można go nadpisać bez rekompilacji (np. w kontenerze).
+- **Scoped `IMediator` used after the request scope was disposed** — webhook handling (`WebhookController`) processed requests fire-and-forget via `Task.Run`, using the scoped `IMediator` injected into the controller. Once the HTTP response was sent, the request scope (and the mediator's dependencies with it) was disposed, risking a background `ObjectDisposedException` and silently swallowed failures. Fixed by creating a dedicated scope via `IServiceScopeFactory` for the background work, plus `try/catch` with logging.
+- **Swagger UI exposed in production** — `app.UseSwagger()`/`UseSwaggerUI()` ran unconditionally. Now gated behind `app.Environment.IsDevelopment()`.
+- **Hardcoded listen address** — `app.Run("http://localhost:5000")` ignored `ASPNETCORE_URLS`/`--urls`/environment variables. Replaced with `app.Run()` and a configurable `Urls` default in `appsettings.json` — still works out of the box on the same port, but can now be overridden without recompiling (e.g. in a container).
 
-## Znane ograniczenia i pomysły na rozwój
+## Known limitations & ideas for improvement
 
-To, co realnie warto poprawić/dodać, żeby projekt przeszedł z "solidne MVP" do "gotowe do produkcji":
+What's genuinely worth fixing/adding to take this from "solid MVP" to "production-ready":
 
-- **Persystencja tylko w pamięci** — `ReviewRepository` to `ConcurrentDictionary`, więc historia znika po restarcie aplikacji. Najważniejsza brakująca rzecz — warto dodać prawdziwą bazę (EF Core + SQLite do startu, PostgreSQL docelowo) za istniejącym interfejsem `IReviewRepository`, więc wymiana nie wymaga zmian w Application/Domain.
-- **Brak testów** — w solucji nie ma ani jednego projektu testowego. Domain i Application (parsery, buildery, handlery) nadają się do czystych testów jednostkowych bez mocków HTTP/DB; warto zacząć od `AIResponseParser`, `ReviewSummaryBuilder`, `WebhookReviewParser`.
-- **CORS `AllowAnyOrigin/Header/Method`** — otwarte na sztywno w `Program.cs`, sensowne w dev, ale do produkcji wymaga zawężenia do konkretnych originów.
-- **Brak autoryzacji/autentykacji** — każdy endpoint (w tym uruchamianie review'u i zarządzanie providerami/modelami) jest publicznie dostępny. Do wystawienia poza `localhost` potrzebny jest choć minimalny auth (API key / JWT).
-- **Webhooki bez weryfikacji podpisu** — `WebhookController` nie sprawdza `X-Hub-Signature-256` (GitHub) ani tokena webhooka (GitLab), więc każdy znający URL może wywołać fałszywy review. Do rozważenia przy realnym wystawieniu na świat.
-- **Brak rate-limitingu / kolejki dla webhooków** — `HandleWebhookCommand` jest odpalany fire-and-forget bez ograniczenia równoległości; przy większym ruchu PR-ów warto to przepuścić przez kolejkę (np. `Channel<T>` albo Hangfire). (Wyciek scoped zależności przy tym fire-and-forget i brak logowania błędów zostały już naprawione — patrz niżej.)
-- **Frontend bez testów i bez TypeScript** — moduły ES są już podzielone i mają jasne granice, ale całość to nadal "gołe" JS bez statycznego typowania; migracja do TS (lub choć JSDoc + `checkJs`) złapałaby błędy typu literówek w kluczach obiektów przed wysłaniem do produkcji.
-- **appsettings z pustymi kluczami API w repo** — działa, ale warto dorzucić `.gitignore` dla `appsettings.*.Local.json` / dokumentację user-secrets, żeby nikt przez pomyłkę nie wrzucił tam prawdziwego klucza.
-- **Health checks / obserwowalność** — brak `/health` endpointu i metryk; przydałyby się przy realnym hostingu (np. do sprawdzania, czy skonfigurowany provider AI faktycznie odpowiada).
+- **In-memory persistence only** — `ReviewRepository` is a `ConcurrentDictionary`, so history is lost on every app restart. The most important gap — worth backing the existing `IReviewRepository` interface with a real database (EF Core + SQLite to start, PostgreSQL for production), so the swap needs no changes in Application/Domain.
+- **No tests** — there isn't a single test project in the solution. Domain and Application (parsers, builders, handlers) are well suited to pure unit tests without HTTP/DB mocks; a good starting point would be `AIResponseParser`, `ReviewSummaryBuilder`, `WebhookReviewParser`.
+- **CORS `AllowAnyOrigin/Header/Method`** — hardcoded wide open in `Program.cs`; fine for dev, but needs narrowing to specific origins for production.
+- **No authorization/authentication** — every endpoint (including running a review or managing providers/models) is publicly accessible. Exposing this beyond `localhost` needs at least minimal auth (API key / JWT).
+- **Webhooks without signature verification** — `WebhookController` doesn't check `X-Hub-Signature-256` (GitHub) or a webhook token (GitLab), so anyone who knows the URL can trigger a fake review. Worth addressing before exposing this to the internet.
+- **No rate limiting / queue for webhooks** — `HandleWebhookCommand` runs fire-and-forget with no concurrency limit; under heavier PR traffic this should go through a queue (e.g. `Channel<T>` or Hangfire). (The scoped-dependency leak and missing error logging in this fire-and-forget path have already been fixed — see above.)
+- **Frontend has no tests and no TypeScript** — the ES modules are already split with clear boundaries, but it's still untyped JS; migrating to TS (or at least JSDoc + `checkJs`) would catch things like typos in object keys before they reach production.
+- **appsettings ships with empty API keys in the repo** — works fine, but it's worth adding a `.gitignore` entry for `appsettings.*.Local.json` / documenting user-secrets, so nobody accidentally commits a real key.
+- **No health checks / observability** — no `/health` endpoint or metrics; useful for real hosting (e.g. to verify the configured AI provider is actually responding).
 
-## Stos technologiczny
+## Tech stack
 
-- **.NET 10**, C# najnowsza wersja języka, `Nullable` + `ImplicitUsings` włączone we wszystkich projektach
-- **Mediator.SourceGenerator** — CQRS bez narzutu runtime (kompilowany mediator, alternatywa dla płatnego MediatR 13+)
-- **FluentValidation** — walidacja komend/zapytań jako pipeline behavior
-- **LLamaSharp** (CPU/CUDA12/Vulkan) — lokalne modele `.gguf`
-- **Swashbuckle/Swagger** — dokumentacja API
-- Frontend: **vanilla JS (moduły ES)**, bez frameworka i bez build tooling
+- **.NET 10**, latest C# language version, `Nullable` + `ImplicitUsings` enabled across all projects
+- **Mediator.SourceGenerator** — CQRS with no runtime overhead (compiled mediator, a free alternative to commercially-licensed MediatR 13+)
+- **FluentValidation** — command/query validation as a pipeline behavior
+- **LLamaSharp** (CPU/CUDA12/Vulkan) — local `.gguf` models
+- **Swashbuckle/Swagger** — API documentation
+- Frontend: **vanilla JS (ES modules)**, no framework, no build tooling
