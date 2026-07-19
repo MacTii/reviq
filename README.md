@@ -1,8 +1,6 @@
 # Reviq — AI Code Review
 
-Reviq is an AI-powered code review tool. It can analyze a single pasted code snippet, a whole batch of files, changes in a local git repository, or automatically react to a GitHub/GitLab pull-request webhook — all with a choice of any AI provider (local or cloud).
-
-Backend: ASP.NET Core Web API (.NET 10) in Clean Architecture + CQRS. Frontend: static, browser-only (vanilla JS, ES modules, no bundler).
+Reviq reviews your code with AI. Paste a snippet, drop in a batch of files, point it at a local git repository, or wire it up to your GitHub/GitLab pull requests so every PR gets reviewed automatically. Runs fully offline with a local model, or use your own API key for Claude, OpenAI, Groq, or OpenRouter — your choice.
 
 ## Screenshots
 
@@ -14,89 +12,20 @@ Backend: ASP.NET Core Web API (.NET 10) in Clean Architecture + CQRS. Frontend: 
 |---|---|
 | ![Repository](docs/screenshots/03-repo-tab.jpg) | ![History](docs/screenshots/04-history.jpg) |
 
-## Features
+## What you can do with it
 
-- **Pasted code analysis** — paste a code snippet (or several files at once) and get a score (0–100), a list of issues split into Critical/Warning/Info, suggestions, and a before/after diff for selected issues.
-- **Local git repository review** — point Reviq at a repo path and pick a diff scope: last commit, changes since the last push, uncommitted changes, or all files. Reviq runs `git diff`/`git ls-files` itself (via the `git` CLI) and sends the changed files to the AI.
-- **Automatic PR review (webhook)** — `POST /api/webhook/github` and `POST /api/webhook/gitlab` receive `pull_request`/`merge_request` webhooks, fetch the changed files from the PR, run an AI analysis, and post the result back as a PR comment + commit status.
-- **Local AI models (offline)** — a built-in engine on top of **LLamaSharp**/llama.cpp (CPU, CUDA 12, Vulkan) for running `.gguf` models without sending code anywhere. Search and download models directly from Hugging Face, manage downloaded files from the UI.
-- **Multiple AI providers, switchable on the fly** — switch provider and model without restarting the app, with a live availability status for each.
-- **Analysis history** — a list of past reviews with a detail view (kept in the process's memory — see [Known Limitations](#known-limitations--ideas-for-improvement)).
-- **Report export** — export an analysis result as a standalone HTML file, or print/save it as PDF.
-- **PL/EN** — a fully localized UI with a language switcher (JSON-based i18n, no external libraries).
-
-### Supported AI providers
-
-| Provider | Type | Requires |
-|---|---|---|
-| **LocalAI** | local (LLamaSharp/llama.cpp, in-process) | a `.gguf` file in the models folder |
-| **Ollama** | local (HTTP server) | a running `ollama serve` (default `localhost:11434`) |
-| **LM Studio** | local (HTTP server, OpenAI-compatible) | a running LM Studio (default `localhost:1234`) |
-| **Claude** | cloud | an Anthropic API key |
-| **OpenAI** | cloud | an OpenAI API key |
-| **Groq** | cloud | a Groq API key |
-| **OpenRouter** | cloud | an OpenRouter API key |
-
-## Architecture
-
-Clean Architecture across 4 projects, dependencies pointing inward, CQRS via a self-hosted, free mediator source generator (`Mediator.SourceGenerator` — no MediatR v13+ commercial license required):
-
-```
-Presentation/API  ─┐
-Infrastructure    ─┼──►  Application  ──►  Domain
-```
-
-- **Reviq.Domain** — entities (`ReviewResult`, `FileReview`, `ReviewIssue`, `WebhookPayload`...), enums, value objects, port interfaces (`IGitProvider`, `IGitHostProvider`, `IReviewRepository`). No outward dependencies.
-- **Reviq.Application** — use-case logic as Commands/Queries (feature folders: `Features/Reviews`, `Features/Webhook`, `Features/Git`, `Features/AI`), validation via FluentValidation, DTOs, mapping.
-- **Reviq.Infrastructure** — port implementations: AI providers, GitHub/GitLab integrations, local repo operations, LocalAI/Hugging Face engine, repository (in-memory).
-- **Reviq.API** — controllers as a thin layer translating HTTP → Mediator, middleware, DI configuration, static frontend under `wwwroot`.
-
-### Project structure
-
-```
-Reviq.Domain/
-├── Entities/            # ReviewResult, FileReview, ReviewIssue, WebhookPayload, PrFile...
-├── Enums/                # IssueSeverity, IssueCategory, ProviderName, DiffScope...
-├── Interfaces/           # IGitProvider, IGitHostProvider, IReviewRepository
-└── ValueObjects/         # ProviderInfo
-
-Reviq.Application/
-├── Common/                # AIResponseParser, ReviewSummaryBuilder, ValidationBehavior
-├── DTOs/
-├── Features/
-│   ├── AI/Queries/            # provider status
-│   ├── Git/Queries/           # repo info
-│   ├── Reviews/Commands+Queries/  # snippet/batch/repo review, history
-│   └── Webhook/Commands/      # PR webhook handling
-├── Interfaces/            # IAIProvider(Factory), IGitHostProviderFactory, ILocalAIService...
-└── Requests/
-
-Reviq.Infrastructure/
-├── AI/
-│   ├── Providers/         # LocalAI, Ollama, Claude, OpenAI, Groq, OpenRouter, LMStudio
-│   └── Parsing/           # prompt building
-├── Configuration/         # options classes (Options pattern)
-├── Git/                   # GitService (CLI), GitHub/GitLab providers, PR file fetcher
-├── LocalAI/
-│   ├── HuggingFace/       # model search/download client
-│   ├── Models/
-│   └── Services/          # downloaded .gguf model management
-└── Persistence/           # ReviewRepository (in-memory)
-
-Reviq.API/
-├── Controllers/           # Code, Review, Git, History, AI, LocalAI, Webhook
-├── Middleware/             # ErrorHandlingMiddleware
-├── Requests/ / Responses/  # HTTP contracts
-└── wwwroot/                # frontend (ES modules, no bundler)
-    ├── css/
-    ├── js/                  # api.js, i18n.js, providers.js, review.js, results.js,
-    │                        # localai.js, history.js, export.js, app.js...
-    └── locales/             # pl.json, en.json
-```
+- **Review a code snippet** — paste code or drag in files, pick a language, hit analyze. You get a score out of 100, issues grouped by severity (Critical / Warning / Info), plain-language explanations, and a before/after fix suggestion where relevant.
+- **Review a local git repository** — point Reviq at a folder on your machine and choose what to review: the last commit, everything since your last push, uncommitted changes, or the whole repo. No need to manually copy files around.
+- **Get PRs reviewed automatically** — connect a GitHub or GitLab webhook and every opened or updated pull request gets an AI review comment plus a pass/fail commit status, with no manual step on your end.
+- **Run everything offline** — download a code model straight from Hugging Face inside the app and review code without your source ever leaving your machine.
+- **Switch AI providers anytime** — flip between a local model and a cloud provider from the UI, no restart needed. Reviq shows you which providers are actually reachable right now.
+- **Keep a history of past reviews** — revisit anything you've analyzed in the current session and open it back up.
+- **Export a report** — save any analysis as a standalone HTML file, or print it to PDF, to share with your team.
+- **Use it in Polish or English** — full UI translation with a one-click language switch.
 
 ## Getting started
 
-**Requirements:** .NET 10 SDK, `git` available on PATH (for local repository reviews). Optional: [Ollama](https://ollama.com)/[LM Studio](https://lmstudio.ai) running locally, or an API key for one of the cloud providers.
+**Requirements:** [.NET 10 SDK](https://dotnet.microsoft.com/download), and `git` available on your PATH if you want to review local repositories.
 
 ```bash
 git clone <repo-url>
@@ -106,44 +35,24 @@ cd Reviq.API
 dotnet run
 ```
 
-The app starts on `http://localhost:5000` — both the frontend (`/`) and Swagger (`/swagger`) are served from the same address.
+Open `http://localhost:5000` in your browser — that's the whole app, no separate frontend server needed.
 
-### Configuration (`Reviq.API/appsettings.json`)
+### Setting up an AI provider
 
-| Section | Key | Description |
-|---|---|---|
-| `Ollama` | `BaseUrl`, `DefaultModel` | address of the local Ollama server |
-| `LocalAI` | `ModelsDir` | folder for downloaded `.gguf` files |
-| `AI:Claude` / `OpenAI` / `Groq` / `OpenRouter` / `LMStudio` | `ApiKey`, `BaseUrl`, `DefaultModel` | credentials for cloud providers — empty by default, in which case the provider is reported as unconfigured |
-| `Git:GitHub` / `GitLab` | `Token` | token used when handling webhooks (PR comment, commit status) |
+You need at least one working provider before you can run a review:
 
-All API keys ship empty in the repository — never commit real secrets there; for local work use `appsettings.Development.json` or [user-secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets).
+- **Easiest: a local model.** Open the "Local AI" panel in the app, pick one of the recommended models (or search Hugging Face for any GGUF model), and download it. Nothing to configure — Reviq runs it in-process.
+- **Ollama / LM Studio.** Install and start either one on your machine, then just select it as the provider in the app. By default Reviq looks for Ollama at `localhost:11434` and LM Studio at `localhost:1234`.
+- **A cloud provider (Claude, OpenAI, Groq, or OpenRouter).** Add your API key to `Reviq.API/appsettings.json` (or, better, to `appsettings.Development.json` / [user-secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets) so it never ends up committed) under the matching `AI:<Provider>:ApiKey` entry, then restart the app. It'll show up as configured in the provider switcher.
 
-### Recently fixed
+### Setting up automatic PR reviews
 
-- **Scoped `IMediator` used after the request scope was disposed** — webhook handling (`WebhookController`) processed requests fire-and-forget via `Task.Run`, using the scoped `IMediator` injected into the controller. Once the HTTP response was sent, the request scope (and the mediator's dependencies with it) was disposed, risking a background `ObjectDisposedException` and silently swallowed failures. Fixed by creating a dedicated scope via `IServiceScopeFactory` for the background work, plus `try/catch` with logging.
-- **Swagger UI exposed in production** — `app.UseSwagger()`/`UseSwaggerUI()` ran unconditionally. Now gated behind `app.Environment.IsDevelopment()`.
-- **Hardcoded listen address** — `app.Run("http://localhost:5000")` ignored `ASPNETCORE_URLS`/`--urls`/environment variables. Replaced with `app.Run()` and a configurable `Urls` default in `appsettings.json` — still works out of the box on the same port, but can now be overridden without recompiling (e.g. in a container).
+1. Add your `Git:GitHub:Token` / `Git:GitLab:Token` to `appsettings.json` — this is what Reviq uses to post comments and commit statuses back to your repo.
+2. In your GitHub/GitLab repository settings, add a webhook pointing at `https://<your-server>/api/webhook/github` (or `/gitlab`), triggered on pull request / merge request events.
+3. Open a PR — Reviq picks it up, reviews the changed files, and posts the result as a comment with a commit status.
 
-## Known limitations & ideas for improvement
+This needs Reviq to be reachable from GitHub/GitLab, so for real usage you'll want to deploy it somewhere public (or tunnel it, e.g. with ngrok, for testing).
 
-What's genuinely worth fixing/adding to take this from "solid MVP" to "production-ready":
+## More for developers
 
-- **In-memory persistence only** — `ReviewRepository` is a `ConcurrentDictionary`, so history is lost on every app restart. The most important gap — worth backing the existing `IReviewRepository` interface with a real database (EF Core + SQLite to start, PostgreSQL for production), so the swap needs no changes in Application/Domain.
-- **No tests** — there isn't a single test project in the solution. Domain and Application (parsers, builders, handlers) are well suited to pure unit tests without HTTP/DB mocks; a good starting point would be `AIResponseParser`, `ReviewSummaryBuilder`, `WebhookReviewParser`.
-- **CORS `AllowAnyOrigin/Header/Method`** — hardcoded wide open in `Program.cs`; fine for dev, but needs narrowing to specific origins for production.
-- **No authorization/authentication** — every endpoint (including running a review or managing providers/models) is publicly accessible. Exposing this beyond `localhost` needs at least minimal auth (API key / JWT).
-- **Webhooks without signature verification** — `WebhookController` doesn't check `X-Hub-Signature-256` (GitHub) or a webhook token (GitLab), so anyone who knows the URL can trigger a fake review. Worth addressing before exposing this to the internet.
-- **No rate limiting / queue for webhooks** — `HandleWebhookCommand` runs fire-and-forget with no concurrency limit; under heavier PR traffic this should go through a queue (e.g. `Channel<T>` or Hangfire). (The scoped-dependency leak and missing error logging in this fire-and-forget path have already been fixed — see above.)
-- **Frontend has no tests and no TypeScript** — the ES modules are already split with clear boundaries, but it's still untyped JS; migrating to TS (or at least JSDoc + `checkJs`) would catch things like typos in object keys before they reach production.
-- **appsettings ships with empty API keys in the repo** — works fine, but it's worth adding a `.gitignore` entry for `appsettings.*.Local.json` / documenting user-secrets, so nobody accidentally commits a real key.
-- **No health checks / observability** — no `/health` endpoint or metrics; useful for real hosting (e.g. to verify the configured AI provider is actually responding).
-
-## Tech stack
-
-- **.NET 10**, latest C# language version, `Nullable` + `ImplicitUsings` enabled across all projects
-- **Mediator.SourceGenerator** — CQRS with no runtime overhead (compiled mediator, a free alternative to commercially-licensed MediatR 13+)
-- **FluentValidation** — command/query validation as a pipeline behavior
-- **LLamaSharp** (CPU/CUDA12/Vulkan) — local `.gguf` models
-- **Swashbuckle/Swagger** — API documentation
-- Frontend: **vanilla JS (ES modules)**, no framework, no build tooling
+Architecture, project layout, tech stack, and the current list of known limitations live in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
