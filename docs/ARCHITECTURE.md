@@ -68,12 +68,6 @@ Reviq.API/
 - **Swashbuckle/Swagger** — API documentation (Development only)
 - Frontend: **vanilla JS (ES modules)**, no framework, no build tooling
 
-## Recently fixed
-
-- **Scoped `IMediator` used after the request scope was disposed** — webhook handling (`WebhookController`) processed requests fire-and-forget via `Task.Run`, using the scoped `IMediator` injected into the controller. Once the HTTP response was sent, the request scope (and the mediator's dependencies with it) was disposed, risking a background `ObjectDisposedException` and silently swallowed failures. Fixed by creating a dedicated scope via `IServiceScopeFactory` for the background work, plus `try/catch` with logging.
-- **Swagger UI exposed in production** — `app.UseSwagger()`/`UseSwaggerUI()` ran unconditionally. Now gated behind `app.Environment.IsDevelopment()`.
-- **Hardcoded listen address** — `app.Run("http://localhost:5000")` ignored `ASPNETCORE_URLS`/`--urls`/environment variables. Replaced with `app.Run()` and a configurable `Urls` default in `appsettings.json` — still works out of the box on the same port, but can now be overridden without recompiling (e.g. in a container).
-
 ## Known limitations & ideas for improvement
 
 What's genuinely worth fixing/adding to take this from "solid MVP" to "production-ready":
