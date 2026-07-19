@@ -361,3 +361,9 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Reviq runtime data (SQLite database, local-only config overrides)
+*.db
+*.db-shm
+*.db-wal
+appsettings.*.Local.json

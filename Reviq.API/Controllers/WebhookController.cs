@@ -1,10 +1,9 @@
-using Mediator;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Reviq.API.Responses;
-using Reviq.Application.Features.Webhook.Commands;
+using Reviq.API.Webhooks;
 using Reviq.Domain.Entities;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace Reviq.API.Controllers;
@@ -12,50 +11,88 @@ namespace Reviq.API.Controllers;
 [ApiController]
 [Route("api/webhook")]
 public sealed class WebhookController(
-    IServiceScopeFactory scopeFactory,
+    IWebhookQueue queue,
     IConfiguration config,
     ILogger<WebhookController> logger) : ControllerBase
 {
     [HttpPost("github")]
     public async Task<IActionResult> GitHub()
     {
-        var payload = await ParseGitHubPayloadAsync();
+        var body = await new StreamReader(Request.Body).ReadToEndAsync();
+
+        if (!VerifyGitHubSignature(body))
+        {
+            logger.LogWarning("Rejected GitHub webhook: invalid or missing signature.");
+            return Unauthorized();
+        }
+
+        var payload = ParseGitHubPayload(body);
         if (payload is null) return Ok();
-        _ = ProcessWebhookAsync(payload);
+        await queue.EnqueueAsync(payload, HttpContext.RequestAborted);
         return Ok(new WebhookReceivedResponse(true));
     }
 
     [HttpPost("gitlab")]
     public async Task<IActionResult> GitLab()
     {
-        var payload = await ParseGitLabPayloadAsync();
+        var body = await new StreamReader(Request.Body).ReadToEndAsync();
+
+        if (!VerifyGitLabToken())
+        {
+            logger.LogWarning("Rejected GitLab webhook: invalid or missing token.");
+            return Unauthorized();
+        }
+
+        var payload = ParseGitLabPayload(body);
         if (payload is null) return Ok();
-        _ = ProcessWebhookAsync(payload);
+        await queue.EnqueueAsync(payload, HttpContext.RequestAborted);
         return Ok(new WebhookReceivedResponse(true));
     }
 
-    // Odpalane fire-and-forget po zwróceniu odpowiedzi do huba webhooków — request scope
-    // (a wraz z nim IMediator i jego zależności) jest wtedy już dysponowany, więc tworzymy
-    // dla tego przetwarzania osobny scope zamiast korzystać ze scoped serwisu z konstruktora.
-    private async Task ProcessWebhookAsync(WebhookPayload payload)
+    // Verifies the GitHub HMAC-SHA256 payload signature (X-Hub-Signature-256) against the
+    // configured Git:GitHub:WebhookSecret. If no secret is configured, verification is skipped
+    // (matches how other optional secrets behave in this app) but a warning is logged so the
+    // gap is visible in logs rather than silently permissive.
+    private bool VerifyGitHubSignature(string body)
     {
-        using var scope = scopeFactory.CreateScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var secret = config["Git:GitHub:WebhookSecret"];
+        if (string.IsNullOrEmpty(secret))
+        {
+            logger.LogWarning("Git:GitHub:WebhookSecret is not configured — accepting GitHub webhook without signature verification.");
+            return true;
+        }
 
-        try
-        {
-            await mediator.Send(new HandleWebhookCommand(payload));
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to process {Platform} webhook for {Repo}#{PrNumber}",
-                payload.Platform, payload.RepoFullName, payload.PrNumber);
-        }
+        var header = Request.Headers["X-Hub-Signature-256"].ToString();
+        if (!header.StartsWith("sha256=", StringComparison.Ordinal)) return false;
+
+        var expectedHex = header["sha256=".Length..];
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
+        var computedHex = Convert.ToHexStringLower(hmac.ComputeHash(Encoding.UTF8.GetBytes(body)));
+
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(computedHex), Encoding.UTF8.GetBytes(expectedHex));
     }
 
-    private async Task<WebhookPayload?> ParseGitHubPayloadAsync()
+    // GitLab webhooks authenticate with a plain shared secret token (X-Gitlab-Token), not an
+    // HMAC signature. Same "skip if unconfigured, but log" behavior as the GitHub check above.
+    private bool VerifyGitLabToken()
     {
-        var body = await new StreamReader(Request.Body).ReadToEndAsync();
+        var secret = config["Git:GitLab:WebhookSecret"];
+        if (string.IsNullOrEmpty(secret))
+        {
+            logger.LogWarning("Git:GitLab:WebhookSecret is not configured — accepting GitLab webhook without token verification.");
+            return true;
+        }
+
+        var token = Request.Headers["X-Gitlab-Token"].ToString();
+        if (string.IsNullOrEmpty(token)) return false;
+
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(token), Encoding.UTF8.GetBytes(secret));
+    }
+
+    private WebhookPayload? ParseGitHubPayload(string body)
+    {
         using var doc = JsonDocument.Parse(body);
         var root = doc.RootElement;
 
@@ -69,12 +106,11 @@ public sealed class WebhookController(
             PrNumber: pr.TryGetProperty("number", out var num) ? num.GetInt32() : 0,
             CommitSha: pr.TryGetProperty("head", out var head) &&
                           head.TryGetProperty("sha", out var sha) ? sha.GetString() ?? "" : "",
-            Token: config["GitHub:Token"] ?? "");
+            Token: config["Git:GitHub:Token"] ?? "");
     }
 
-    private async Task<WebhookPayload?> ParseGitLabPayloadAsync()
+    private WebhookPayload? ParseGitLabPayload(string body)
     {
-        var body = await new StreamReader(Request.Body).ReadToEndAsync();
         using var doc = JsonDocument.Parse(body);
         var root = doc.RootElement;
 
@@ -92,6 +128,6 @@ public sealed class WebhookController(
             PrNumber: attrs.TryGetProperty("iid", out var iid) ? iid.GetInt32() : 0,
             CommitSha: attrs.TryGetProperty("last_commit", out var lc) &&
                           lc.TryGetProperty("id", out var cid) ? cid.GetString() ?? "" : "",
-            Token: config["GitLab:Token"] ?? "");
+            Token: config["Git:GitLab:Token"] ?? "");
     }
 }

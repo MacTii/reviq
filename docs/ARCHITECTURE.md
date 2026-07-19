@@ -13,8 +13,9 @@ Infrastructure    ─┼──►  Application  ──►  Domain
 
 - **Reviq.Domain** — entities (`ReviewResult`, `FileReview`, `ReviewIssue`, `WebhookPayload`...), enums, value objects, port interfaces (`IGitProvider`, `IGitHostProvider`, `IReviewRepository`). No outward dependencies.
 - **Reviq.Application** — use-case logic as Commands/Queries (feature folders: `Features/Reviews`, `Features/Webhook`, `Features/Git`, `Features/AI`), validation via FluentValidation, DTOs, mapping.
-- **Reviq.Infrastructure** — port implementations: AI providers, GitHub/GitLab integrations, local repo operations, LocalAI/Hugging Face engine, repository (in-memory).
+- **Reviq.Infrastructure** — port implementations: AI providers, GitHub/GitLab integrations, local repo operations, LocalAI/Hugging Face engine, EF Core + SQLite repository.
 - **Reviq.API** — controllers as a thin layer translating HTTP → Mediator, middleware, DI configuration, static frontend under `wwwroot`.
+- **Reviq.Application.Tests** — xUnit unit tests for the Application layer (parsers, builders — no HTTP/DB involved).
 
 ## Project structure
 
@@ -46,11 +47,16 @@ Reviq.Infrastructure/
 │   ├── HuggingFace/       # model search/download client
 │   ├── Models/
 │   └── Services/          # downloaded .gguf model management
-└── Persistence/           # ReviewRepository (in-memory)
+└── Persistence/
+    ├── Entities/           # EF Core persistence models (kept separate from Domain entities)
+    ├── Migrations/         # EF Core migrations (dotnet-ef, installed as a local tool)
+    ├── ReviqDbContext.cs
+    └── SqliteReviewRepository.cs
 
 Reviq.API/
 ├── Controllers/           # Code, Review, Git, History, AI, LocalAI, Webhook
-├── Middleware/             # ErrorHandlingMiddleware
+├── Middleware/             # ErrorHandlingMiddleware, ApiKeyMiddleware
+├── Webhooks/               # IWebhookQueue/WebhookQueue (bounded Channel<T>), WebhookProcessingService (BackgroundService)
 ├── Requests/ / Responses/  # HTTP contracts
 └── wwwroot/                # frontend (ES modules, no bundler)
     ├── css/
@@ -64,20 +70,33 @@ Reviq.API/
 - **.NET 10**, latest C# language version, `Nullable` + `ImplicitUsings` enabled across all projects
 - **Mediator.SourceGenerator** — CQRS with no runtime overhead (compiled mediator, a free alternative to commercially-licensed MediatR 13+)
 - **FluentValidation** — command/query validation as a pipeline behavior
+- **EF Core + SQLite** — review history persistence, migrations via `dotnet-ef` (installed as a local tool, see `dotnet-tools.json`)
 - **LLamaSharp** (CPU/CUDA12/Vulkan) — local `.gguf` models
 - **Swashbuckle/Swagger** — API documentation (Development only)
+- **xUnit** — Application-layer unit tests
 - Frontend: **vanilla JS (ES modules)**, no framework, no build tooling
+
+## Testing
+
+```bash
+dotnet test Reviq.Application.Tests
+```
+
+Covers the pure Application-layer logic (`AIResponseParser`, `ReviewSummaryBuilder`, `WebhookReviewParser`, `WebhookCommentBuilder`, `PrFileLanguageDetector`) with no HTTP/DB dependencies.
+
+## Security
+
+- **CORS** — restricted to origins listed in `Cors:AllowedOrigins` (defaults to `http://localhost:5000`).
+- **Webhook verification** — GitHub payloads are checked against `X-Hub-Signature-256` (HMAC-SHA256, `Git:GitHub:WebhookSecret`); GitLab payloads against `X-Gitlab-Token` (`Git:GitLab:WebhookSecret`). If a secret isn't configured, the corresponding check is skipped (a warning is logged) rather than rejecting everything — set the secret to enforce it.
+- **Optional API key** — set `Security:ApiKey` to require an `X-Api-Key` header on `/api/*` (excluding `/api/webhook/*`, which authenticate via the mechanism above). Empty by default, matching how the AI provider keys behave.
+- **Health check** — `GET /health` for liveness monitoring.
 
 ## Known limitations & ideas for improvement
 
-What's genuinely worth fixing/adding to take this from "solid MVP" to "production-ready":
+What's still genuinely worth adding:
 
-- **In-memory persistence only** — `ReviewRepository` is a `ConcurrentDictionary`, so history is lost on every app restart. The most important gap — worth backing the existing `IReviewRepository` interface with a real database (EF Core + SQLite to start, PostgreSQL for production), so the swap needs no changes in Application/Domain.
-- **No tests** — there isn't a single test project in the solution. Domain and Application (parsers, builders, handlers) are well suited to pure unit tests without HTTP/DB mocks; a good starting point would be `AIResponseParser`, `ReviewSummaryBuilder`, `WebhookReviewParser`.
-- **CORS `AllowAnyOrigin/Header/Method`** — hardcoded wide open in `Program.cs`; fine for dev, but needs narrowing to specific origins for production.
-- **No authorization/authentication** — every endpoint (including running a review or managing providers/models) is publicly accessible. Exposing this beyond `localhost` needs at least minimal auth (API key / JWT).
-- **Webhooks without signature verification** — `WebhookController` doesn't check `X-Hub-Signature-256` (GitHub) or a webhook token (GitLab), so anyone who knows the URL can trigger a fake review. Worth addressing before exposing this to the internet.
-- **No rate limiting / queue for webhooks** — `HandleWebhookCommand` runs fire-and-forget with no concurrency limit; under heavier PR traffic this should go through a queue (e.g. `Channel<T>` or Hangfire).
+- **API key is all-or-nothing, no user accounts** — fine for a single self-hosted instance behind a reverse proxy, but there's no per-user auth, roles, or session model. A real multi-user deployment would need OAuth/JWT with actual identities.
+- **Test coverage is Application-layer only** — Domain, Infrastructure (EF repository, AI providers, git integrations), and API controllers have no automated tests yet.
 - **Frontend has no tests and no TypeScript** — the ES modules are already split with clear boundaries, but it's still untyped JS; migrating to TS (or at least JSDoc + `checkJs`) would catch things like typos in object keys before they reach production.
-- **appsettings ships with empty API keys in the repo** — works fine, but it's worth adding a `.gitignore` entry for `appsettings.*.Local.json` / documenting user-secrets, so nobody accidentally commits a real key.
-- **No health checks / observability** — no `/health` endpoint or metrics; useful for real hosting (e.g. to verify the configured AI provider is actually responding).
+- **SQLite, not built for concurrent multi-instance deployments** — fine for a single-process self-hosted setup; scaling out to multiple app instances would need PostgreSQL or similar.
+- **No metrics/tracing beyond the basic `/health` check** — no request metrics, no distributed tracing; would matter for a real production deployment with multiple moving parts.

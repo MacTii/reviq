@@ -19,7 +19,7 @@ Reviq reviews your code with AI. Paste a snippet, drop in a batch of files, poin
 - **Get PRs reviewed automatically** — connect a GitHub or GitLab webhook and every opened or updated pull request gets an AI review comment plus a pass/fail commit status, with no manual step on your end.
 - **Run everything offline** — download a code model straight from Hugging Face inside the app and review code without your source ever leaving your machine.
 - **Switch AI providers anytime** — flip between a local model and a cloud provider from the UI, no restart needed. Reviq shows you which providers are actually reachable right now.
-- **Keep a history of past reviews** — revisit anything you've analyzed in the current session and open it back up.
+- **Keep a history of past reviews** — every analysis is saved and stays available even after you restart the app; revisit anything you've run and open it back up.
 - **Export a report** — save any analysis as a standalone HTML file, or print it to PDF, to share with your team.
 - **Use it in Polish or English** — full UI translation with a one-click language switch.
 
@@ -48,10 +48,11 @@ You need at least one working provider before you can run a review:
 ### Setting up automatic PR reviews
 
 1. Add your `Git:GitHub:Token` / `Git:GitLab:Token` to `appsettings.json` — this is what Reviq uses to post comments and commit statuses back to your repo.
-2. In your GitHub/GitLab repository settings, add a webhook pointing at `https://<your-server>/api/webhook/github` (or `/gitlab`), triggered on pull request / merge request events.
-3. Open a PR — Reviq picks it up, reviews the changed files, and posts the result as a comment with a commit status.
+2. Pick a webhook secret and set it as `Git:GitHub:WebhookSecret` (or `Git:GitLab:WebhookSecret`) — this is what stops anyone who finds your webhook URL from triggering fake reviews. Use the same value when creating the webhook in the next step.
+3. In your GitHub/GitLab repository settings, add a webhook pointing at `https://<your-server>/api/webhook/github` (or `/gitlab`), triggered on pull request / merge request events, with the secret from step 2.
+4. Open a PR — Reviq picks it up, reviews the changed files, and posts the result as a comment with a commit status.
 
-This needs Reviq to be reachable from GitHub/GitLab, so for real usage you'll want to deploy it somewhere public (or tunnel it, e.g. with ngrok, for testing).
+This needs Reviq to be reachable from GitHub/GitLab, so for real usage you'll want to deploy it somewhere public (or tunnel it, e.g. with ngrok, for testing). If you skip step 2, webhooks still work, just without signature verification.
 
 ## More for developers
 

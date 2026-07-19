@@ -31,4 +31,28 @@ public sealed class ReviewResult
         Branch = branch;
         CommitHash = commitHash;
     }
+
+    // Rehydrates an existing review (e.g. loaded from storage) with its original identity,
+    // as opposed to the primary constructor above which always mints a new one.
+    public ReviewResult(
+        string reviewId,
+        DateTime createdAt,
+        string label,
+        string source,
+        IReadOnlyList<FileReview> files,
+        ReviewSummary summary,
+        string repoPath = "",
+        string branch = "",
+        string commitHash = "")
+    {
+        ReviewId = reviewId;
+        CreatedAt = createdAt;
+        Label = label;
+        Source = source;
+        Files = files;
+        Summary = summary;
+        RepoPath = repoPath;
+        Branch = branch;
+        CommitHash = commitHash;
+    }
 }

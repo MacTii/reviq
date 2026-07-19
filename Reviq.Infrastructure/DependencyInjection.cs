@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -22,10 +23,23 @@ public static class DependencyInjection
         services
             .AddOptions(configuration)
             .AddHttpClients()
+            .AddPersistence(configuration)
             .AddRepositories()
             .AddAIProviders()
             .AddLocalAI();
 
+        return services;
+    }
+
+    // ── PERSISTENCE ───────────────────────────────────────────────────────────
+
+    private static IServiceCollection AddPersistence(
+        this IServiceCollection services, IConfiguration configuration)
+    {
+        var connectionString = configuration.GetConnectionString("Default")
+            ?? "Data Source=reviq.db";
+
+        services.AddDbContext<ReviqDbContext>(opts => opts.UseSqlite(connectionString));
         return services;
     }
 
@@ -80,7 +94,7 @@ public static class DependencyInjection
 
     private static IServiceCollection AddRepositories(this IServiceCollection services)
     {
-        services.AddSingleton<IReviewRepository, ReviewRepository>();
+        services.AddScoped<IReviewRepository, SqliteReviewRepository>();
         services.AddSingleton<IGitProvider, GitService>();
         services.AddScoped<IGitHostProviderFactory, GitHostProviderFactory>();
         services.AddScoped<IPrFileContentFetcher, HttpPrFileContentFetcher>();
