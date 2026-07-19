@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Reviq.Application\Reviq.Application.csproj" />
+    <ProjectReference Include="..\..\src\Reviq.Application\Reviq.Application.csproj" />
   </ItemGroup>
 
 </Project>

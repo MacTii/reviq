@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Options;
+using Reviq.API.Configuration;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -10,9 +12,9 @@ public sealed class ApiKeyMiddleware(RequestDelegate next)
 {
     private const string HeaderName = "X-Api-Key";
 
-    public async Task InvokeAsync(HttpContext context, IConfiguration config)
+    public async Task InvokeAsync(HttpContext context, IOptions<SecurityOptions> options)
     {
-        var apiKey = config["Security:ApiKey"];
+        var apiKey = options.Value.ApiKey;
 
         if (string.IsNullOrEmpty(apiKey) ||
             !context.Request.Path.StartsWithSegments("/api") ||

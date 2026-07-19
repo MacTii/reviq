@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Reviq.API.Responses;
 using Reviq.API.Webhooks;
 using Reviq.Domain.Entities;
+using Reviq.Infrastructure.Configuration;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -12,9 +14,11 @@ namespace Reviq.API.Controllers;
 [Route("api/webhook")]
 public sealed class WebhookController(
     IWebhookQueue queue,
-    IConfiguration config,
+    IOptions<GitOptions> gitOptions,
     ILogger<WebhookController> logger) : ControllerBase
 {
+    private readonly GitOptions _git = gitOptions.Value;
+
     [HttpPost("github")]
     public async Task<IActionResult> GitHub()
     {
@@ -55,7 +59,7 @@ public sealed class WebhookController(
     // gap is visible in logs rather than silently permissive.
     private bool VerifyGitHubSignature(string body)
     {
-        var secret = config["Git:GitHub:WebhookSecret"];
+        var secret = _git.GitHub.WebhookSecret;
         if (string.IsNullOrEmpty(secret))
         {
             logger.LogWarning("Git:GitHub:WebhookSecret is not configured — accepting GitHub webhook without signature verification.");
@@ -77,7 +81,7 @@ public sealed class WebhookController(
     // HMAC signature. Same "skip if unconfigured, but log" behavior as the GitHub check above.
     private bool VerifyGitLabToken()
     {
-        var secret = config["Git:GitLab:WebhookSecret"];
+        var secret = _git.GitLab.WebhookSecret;
         if (string.IsNullOrEmpty(secret))
         {
             logger.LogWarning("Git:GitLab:WebhookSecret is not configured — accepting GitLab webhook without token verification.");
@@ -106,7 +110,7 @@ public sealed class WebhookController(
             PrNumber: pr.TryGetProperty("number", out var num) ? num.GetInt32() : 0,
             CommitSha: pr.TryGetProperty("head", out var head) &&
                           head.TryGetProperty("sha", out var sha) ? sha.GetString() ?? "" : "",
-            Token: config["Git:GitHub:Token"] ?? "");
+            Token: _git.GitHub.Token);
     }
 
     private WebhookPayload? ParseGitLabPayload(string body)
@@ -128,6 +132,6 @@ public sealed class WebhookController(
             PrNumber: attrs.TryGetProperty("iid", out var iid) ? iid.GetInt32() : 0,
             CommitSha: attrs.TryGetProperty("last_commit", out var lc) &&
                           lc.TryGetProperty("id", out var cid) ? cid.GetString() ?? "" : "",
-            Token: config["Git:GitLab:Token"] ?? "");
+            Token: _git.GitLab.Token);
     }
 }

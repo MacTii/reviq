@@ -19,51 +19,60 @@ Infrastructure    ─┼──►  Application  ──►  Domain
 
 ## Project structure
 
+Source projects live under `src/`, test projects under `tests/` — a standard .NET solution layout:
+
 ```
-Reviq.Domain/
-├── Entities/            # ReviewResult, FileReview, ReviewIssue, WebhookPayload, PrFile...
-├── Enums/                # IssueSeverity, IssueCategory, ProviderName, DiffScope...
-├── Interfaces/           # IGitProvider, IGitHostProvider, IReviewRepository
-└── ValueObjects/         # ProviderInfo
+src/
+  Reviq.Domain/
+  ├── Entities/            # ReviewResult, FileReview, ReviewIssue, WebhookPayload, PrFile...
+  ├── Enums/                # IssueSeverity, IssueCategory, ProviderName, DiffScope...
+  ├── Interfaces/           # IGitProvider, IGitHostProvider, IReviewRepository
+  └── ValueObjects/         # ProviderInfo
 
-Reviq.Application/
-├── Common/                # AIResponseParser, ReviewSummaryBuilder, ValidationBehavior
-├── DTOs/
-├── Features/
-│   ├── AI/Queries/            # provider status
-│   ├── Git/Queries/           # repo info
-│   ├── Reviews/Commands+Queries/  # snippet/batch/repo review, history
-│   └── Webhook/Commands/      # PR webhook handling
-├── Interfaces/            # IAIProvider(Factory), IGitHostProviderFactory, ILocalAIService...
-└── Requests/
+  Reviq.Application/
+  ├── Common/                # AIResponseParser, ReviewSummaryBuilder, ValidationBehavior
+  ├── DTOs/
+  ├── Features/
+  │   ├── AI/Queries/            # provider status
+  │   ├── Git/Queries/           # repo info
+  │   ├── Reviews/Commands+Queries/  # snippet/batch/repo review, history
+  │   └── Webhook/Commands/      # PR webhook handling
+  ├── Interfaces/            # IAIProvider(Factory), IGitHostProviderFactory, ILocalAIService...
+  └── Requests/
 
-Reviq.Infrastructure/
-├── AI/
-│   ├── Providers/         # LocalAI, Ollama, Claude, OpenAI, Groq, OpenRouter, LMStudio
-│   └── Parsing/           # prompt building
-├── Configuration/         # options classes (Options pattern)
-├── Git/                   # GitService (CLI), GitHub/GitLab providers, PR file fetcher
-├── LocalAI/
-│   ├── HuggingFace/       # model search/download client
-│   ├── Models/
-│   └── Services/          # downloaded .gguf model management
-└── Persistence/
-    ├── Entities/           # EF Core persistence models (kept separate from Domain entities)
-    ├── Migrations/         # EF Core migrations (dotnet-ef, installed as a local tool)
-    ├── ReviqDbContext.cs
-    └── SqliteReviewRepository.cs
+  Reviq.Infrastructure/
+  ├── AI/
+  │   ├── Providers/         # LocalAI, Ollama, Claude, OpenAI, Groq, OpenRouter, LMStudio
+  │   └── Parsing/           # prompt building
+  ├── Configuration/         # options classes bound to external integrations (Ollama, Git, HuggingFace...)
+  ├── Git/                   # GitService (CLI), GitHub/GitLab providers, PR file fetcher
+  ├── LocalAI/
+  │   ├── HuggingFace/       # model search/download client
+  │   ├── Models/
+  │   └── Services/          # downloaded .gguf model management
+  └── Persistence/
+      ├── Entities/           # EF Core persistence models (kept separate from Domain entities)
+      ├── Migrations/         # EF Core migrations (dotnet-ef, installed as a local tool)
+      ├── ReviqDbContext.cs
+      └── SqliteReviewRepository.cs
 
-Reviq.API/
-├── Controllers/           # Code, Review, Git, History, AI, LocalAI, Webhook
-├── Middleware/             # ErrorHandlingMiddleware, ApiKeyMiddleware
-├── Webhooks/               # IWebhookQueue/WebhookQueue (bounded Channel<T>), WebhookProcessingService (BackgroundService)
-├── Requests/ / Responses/  # HTTP contracts
-└── wwwroot/                # frontend (ES modules, no bundler)
-    ├── css/
-    ├── js/                  # api.js, i18n.js, providers.js, review.js, results.js,
-    │                        # localai.js, history.js, export.js, app.js...
-    └── locales/             # pl.json, en.json
+  Reviq.API/
+  ├── Controllers/           # Code, Review, Git, History, AI, LocalAI, Webhook
+  ├── Configuration/         # options classes for hosting-level concerns (CorsOptions, SecurityOptions)
+  ├── Middleware/             # ErrorHandlingMiddleware, ApiKeyMiddleware
+  ├── Webhooks/               # IWebhookQueue/WebhookQueue (bounded Channel<T>), WebhookProcessingService (BackgroundService)
+  ├── Requests/ / Responses/  # HTTP contracts
+  └── wwwroot/                # frontend (ES modules, no bundler)
+      ├── css/
+      ├── js/                  # api.js, i18n.js, providers.js, review.js, results.js,
+      │                        # localai.js, history.js, export.js, app.js...
+      └── locales/             # pl.json, en.json
+
+tests/
+  Reviq.Application.Tests/    # xUnit — Application-layer logic only, no HTTP/DB
 ```
+
+Config values are read through the strongly-typed **Options pattern** end to end (`GitOptions`, `OllamaOptions`, `CorsOptions`, `SecurityOptions`, ...) rather than raw `IConfiguration["Key:SubKey"]` string indexing — options specific to external integrations live in `Reviq.Infrastructure/Configuration`, options specific to web-hosting concerns (CORS, the optional API key) live in `Reviq.API/Configuration`.
 
 ## Tech stack
 
@@ -79,7 +88,7 @@ Reviq.API/
 ## Testing
 
 ```bash
-dotnet test Reviq.Application.Tests
+dotnet test tests/Reviq.Application.Tests
 ```
 
 Covers the pure Application-layer logic (`AIResponseParser`, `ReviewSummaryBuilder`, `WebhookReviewParser`, `WebhookCommentBuilder`, `PrFileLanguageDetector`) with no HTTP/DB dependencies.

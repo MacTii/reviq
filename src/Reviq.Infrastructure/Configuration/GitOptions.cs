@@ -15,10 +15,12 @@ public sealed class GitHubOptions
 {
     public string BaseUrl { get; init; } = "https://api.github.com";
     public string Token { get; init; } = "";
+    public string WebhookSecret { get; init; } = "";
 }
 
 public sealed class GitLabOptions
 {
     public string BaseUrl { get; init; } = "https://gitlab.com/api/v4";
     public string Token { get; init; } = "";
+    public string WebhookSecret { get; init; } = "";
 }

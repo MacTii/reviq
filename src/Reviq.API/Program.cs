@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Reviq.API.Configuration;
 using Reviq.API.Middleware;
 using Reviq.API.Webhooks;
 using Reviq.Application;
@@ -15,11 +16,13 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-    ?? ["http://localhost:5000"];
+builder.Services.Configure<CorsOptions>(builder.Configuration.GetSection(CorsOptions.Section));
+builder.Services.Configure<SecurityOptions>(builder.Configuration.GetSection(SecurityOptions.Section));
+
+var corsOptions = builder.Configuration.GetSection(CorsOptions.Section).Get<CorsOptions>() ?? new CorsOptions();
 
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
-    p.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
+    p.WithOrigins(corsOptions.AllowedOrigins).AllowAnyHeader().AllowAnyMethod()));
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);

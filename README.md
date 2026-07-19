@@ -31,7 +31,7 @@ Reviq reviews your code with AI. Paste a snippet, drop in a batch of files, poin
 git clone <repo-url>
 cd Reviq
 dotnet build
-cd Reviq.API
+cd src/Reviq.API
 dotnet run
 ```
 
@@ -43,7 +43,7 @@ You need at least one working provider before you can run a review:
 
 - **Easiest: a local model.** Open the "Local AI" panel in the app, pick one of the recommended models (or search Hugging Face for any GGUF model), and download it. Nothing to configure — Reviq runs it in-process.
 - **Ollama / LM Studio.** Install and start either one on your machine, then just select it as the provider in the app. By default Reviq looks for Ollama at `localhost:11434` and LM Studio at `localhost:1234`.
-- **A cloud provider (Claude, OpenAI, Groq, or OpenRouter).** Add your API key to `Reviq.API/appsettings.json` (or, better, to `appsettings.Development.json` / [user-secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets) so it never ends up committed) under the matching `AI:<Provider>:ApiKey` entry, then restart the app. It'll show up as configured in the provider switcher.
+- **A cloud provider (Claude, OpenAI, Groq, or OpenRouter).** Add your API key to `src/Reviq.API/appsettings.json` (or, better, to `appsettings.Development.json` / [user-secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets) so it never ends up committed) under the matching `AI:<Provider>:ApiKey` entry, then restart the app. It'll show up as configured in the provider switcher.
 
 ### Setting up automatic PR reviews
 
