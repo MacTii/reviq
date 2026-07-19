@@ -20,11 +20,16 @@ builder.Services.AddInfrastructure(builder.Configuration);
 var app = builder.Build();
 
 app.UseMiddleware<ErrorHandlingMiddleware>();
-app.UseSwagger();
-app.UseSwaggerUI();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
 app.UseCors();
 app.UseStaticFiles();
 app.MapControllers();
 app.MapFallbackToFile("index.html");
 
-app.Run("http://localhost:5000");
+app.Run();

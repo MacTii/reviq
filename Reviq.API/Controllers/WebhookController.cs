@@ -1,5 +1,8 @@
-﻿using Mediator;
+using Mediator;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Reviq.API.Responses;
 using Reviq.Application.Features.Webhook.Commands;
 using Reviq.Domain.Entities;
 using System.Text.Json;
@@ -8,15 +11,18 @@ namespace Reviq.API.Controllers;
 
 [ApiController]
 [Route("api/webhook")]
-public sealed class WebhookController(IMediator mediator, IConfiguration config) : ControllerBase
+public sealed class WebhookController(
+    IServiceScopeFactory scopeFactory,
+    IConfiguration config,
+    ILogger<WebhookController> logger) : ControllerBase
 {
     [HttpPost("github")]
     public async Task<IActionResult> GitHub()
     {
         var payload = await ParseGitHubPayloadAsync();
         if (payload is null) return Ok();
-        _ = Task.Run(() => mediator.Send(new HandleWebhookCommand(payload)));
-        return Ok(new { received = true });
+        _ = ProcessWebhookAsync(payload);
+        return Ok(new WebhookReceivedResponse(true));
     }
 
     [HttpPost("gitlab")]
@@ -24,8 +30,27 @@ public sealed class WebhookController(IMediator mediator, IConfiguration config)
     {
         var payload = await ParseGitLabPayloadAsync();
         if (payload is null) return Ok();
-        _ = Task.Run(() => mediator.Send(new HandleWebhookCommand(payload)));
-        return Ok(new { received = true });
+        _ = ProcessWebhookAsync(payload);
+        return Ok(new WebhookReceivedResponse(true));
+    }
+
+    // Odpalane fire-and-forget po zwróceniu odpowiedzi do huba webhooków — request scope
+    // (a wraz z nim IMediator i jego zależności) jest wtedy już dysponowany, więc tworzymy
+    // dla tego przetwarzania osobny scope zamiast korzystać ze scoped serwisu z konstruktora.
+    private async Task ProcessWebhookAsync(WebhookPayload payload)
+    {
+        using var scope = scopeFactory.CreateScope();
+        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+
+        try
+        {
+            await mediator.Send(new HandleWebhookCommand(payload));
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to process {Platform} webhook for {Repo}#{PrNumber}",
+                payload.Platform, payload.RepoFullName, payload.PrNumber);
+        }
     }
 
     private async Task<WebhookPayload?> ParseGitHubPayloadAsync()
